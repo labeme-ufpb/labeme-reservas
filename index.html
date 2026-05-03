@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a3a5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LABEME">
+<meta name="description" content="Sistema de reservas do LABEME — Laboratório de Ensaios de Materiais e Estruturas — UFPB">
+<title>LABEME — Sistema de Reservas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="assets/labeme-logo.jpg">
+</head>
+<body>
+
+<div class="demo-banner">
+  <strong>Modo de demonstração</strong> — dados pré-cadastrados (10 equipamentos, 10 materiais, 7 reservas).
+  Coordenação: <strong>admin@labeme.ufpb.br</strong> / <strong>labeme2026</strong> ·
+  Técnico: <strong>tecnico@labeme.ufpb.br</strong> / <strong>tecnico2026</strong> ·
+  Aluno: <strong>maria.silva@academico.ufpb.br</strong> / <strong>aluno123</strong>
+</div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" onclick="showView('calendar'); return false;">
+      <div class="brand-logo-wrap">
+        <img src="assets/labeme-logo.jpg" alt="LABEME" class="brand-logo">
+      </div>
+      <div class="brand-divider"></div>
+      <div class="brand-tag">
+        <span class="t1">Sistema de</span>
+        <span class="t2">Reservas</span>
+      </div>
+    </a>
+    <nav class="nav-links">
+      <a href="#" id="nav-calendar" class="active" onclick="showView('calendar'); return false;">Calendário</a>
+      <a href="#" id="nav-resources" onclick="showView('resources'); return false;">Equipamentos</a>
+      <a href="#" id="nav-stock" onclick="showView('stock'); return false;" style="display:none;">Estoque</a>
+      <a href="#" id="nav-myres" onclick="showView('myres'); return false;" style="display:none;">Minhas reservas</a>
+      <a href="#" id="nav-messages" onclick="showView('messages'); return false;" style="display:none;">
+        Mensagens
+        <span class="nav-badge" id="msgNavBadge" style="display:none;">0</span>
+      </a>
+      <a href="#" id="nav-tech" onclick="showView('tech'); return false;" style="display:none;">Dashboard</a>
+      <a href="#" id="nav-admin" onclick="showView('admin'); return false;" style="display:none;">Admin</a>
+      <button class="btn-primary" onclick="openReserveModal()">+ Nova reserva</button>
+      <a href="#" id="nav-profile" onclick="showView('profile'); return false;" style="display:none;padding:4px;" title="Meu perfil">
+        <span id="userAvatarSlot"></span>
+      </a>
+      <a href="#" id="nav-auth" onclick="showView('auth'); return false;">Entrar</a>
+      <a href="#" id="nav-logout" onclick="doLogout(); return false;" style="display:none;">Sair</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ CALENDAR VIEW ============ -->
+<section class="view active" id="view-calendar">
+  <div class="hero">
+    <div class="hero-eyebrow">Sistema institucional · LABEME / UFPB</div>
+    <h1 class="hero-title">Reserve <em>equipamentos</em> e <em>espaços</em><br>do laboratório com clareza.</h1>
+    <p class="hero-sub">Plataforma de agendamento do Laboratório de Ensaios de Materiais e Estruturas — Centro de Tecnologia · UFPB. Visualize disponibilidade, reserve recursos e acompanhe suas solicitações.</p>
+  </div>
+
+  <main>
+    <div class="cal-toolbar">
+      <div class="cal-nav">
+        <button onclick="navCal(-1)" aria-label="Anterior">‹</button>
+        <button onclick="navCal(1)" aria-label="Próximo">›</button>
+        <button class="today-btn" onclick="navCal(0)">Hoje</button>
+      </div>
+      <div class="cal-period" id="calPeriod">—</div>
+      <div class="view-toggle">
+        <button id="viewMonthBtn" class="active" onclick="setCalView('month')">Mensal</button>
+        <button id="viewWeekBtn" onclick="setCalView('week')">Semanal</button>
+      </div>
+    </div>
+
+    <div class="resource-filter" id="resourceFilter"></div>
+    <div id="calendarMount"></div>
+  </main>
+</section>
+
+<!-- ============ RESOURCES VIEW (Equipamentos e espaços) ============ -->
+<section class="view" id="view-resources">
+  <div class="hero">
+    <div class="hero-eyebrow">Catálogo</div>
+    <h1 class="hero-title">Equipamentos e espaços</h1>
+    <p class="hero-sub">Catálogo completo de recursos disponíveis para reserva no LABEME.</p>
+  </div>
+  <main>
+    <div id="resourcesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;"></div>
+  </main>
+</section>
+
+<!-- ============ STOCK VIEW ============ -->
+<section class="view" id="view-stock">
+  <div class="hero">
+    <div class="hero-eyebrow">Estoque · Materiais</div>
+    <h1 class="hero-title">Estoque de materiais</h1>
+    <p class="hero-sub">Materiais disponíveis no laboratório — cimento, agregados, aditivos e demais insumos. Cadastro restrito a técnicos e coordenação; visualização aberta a todos os usuários.</p>
+  </div>
+  <main id="stockContent"></main>
+</section>
+
+<!-- ============ MY RESERVATIONS ============ -->
+<section class="view" id="view-myres">
+  <div class="hero">
+    <div class="hero-eyebrow">Painel pessoal</div>
+    <h1 class="hero-title">Minhas reservas</h1>
+    <p class="hero-sub">Acompanhe o status das suas solicitações e envie fotos de devolução.</p>
+  </div>
+  <main>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Histórico</div></div></div>
+      <div class="panel-body" id="myResContent"></div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ PROFILE VIEW ============ -->
+<section class="view" id="view-profile">
+  <div class="hero">
+    <div class="hero-eyebrow">Conta</div>
+    <h1 class="hero-title">Meu perfil</h1>
+    <p class="hero-sub">Informações pessoais, foto e segurança da conta.</p>
+  </div>
+  <main id="profileContent"></main>
+</section>
+
+<!-- ============ MESSAGES VIEW ============ -->
+<section class="view" id="view-messages">
+  <div class="hero">
+    <div class="hero-eyebrow">Comunicação</div>
+    <h1 class="hero-title">Mensagens</h1>
+    <p class="hero-sub">Converse diretamente com a coordenação, técnicos ou usuários do laboratório.</p>
+  </div>
+  <main id="messagesContent"></main>
+</section>
+
+<!-- ============ TECH DASHBOARD ============ -->
+<section class="view" id="view-tech">
+  <div class="hero">
+    <div class="hero-eyebrow">Equipe técnica · LABEME</div>
+    <h1 class="hero-title">Dashboard <em>do técnico</em></h1>
+    <p class="hero-sub">Aprove solicitações pendentes, acompanhe reservas dos próximos dias e veja onde sua presença é obrigatória.</p>
+  </div>
+
+  <main>
+    <div class="cal-toolbar">
+      <div class="view-toggle">
+        <button data-range="pending" class="active" onclick="setTechRange('pending')">
+          ⏱ Pendentes
+          <span id="techPendingBadge" class="nav-badge" style="position:static;margin-left:6px;display:none;">0</span>
+        </button>
+        <button data-range="today" onclick="setTechRange('today')">Hoje</button>
+        <button data-range="week" onclick="setTechRange('week')">Próximos 7 dias</button>
+      </div>
+    </div>
+    <div class="stats-row" id="techStats"></div>
+    <div id="techContent"></div>
+  </main>
+</section>
+
+<!-- ============ AUTH VIEW ============ -->
+<section class="view" id="view-auth">
+  <main>
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="tabLogin" class="active" onclick="setAuthTab('login')">Entrar</button>
+        <button id="tabSignup" onclick="setAuthTab('signup')">Cadastrar</button>
+      </div>
+
+      <div id="loginForm">
+        <div class="auth-title">Bem-vindo de volta</div>
+        <div class="auth-sub">Acesse para gerenciar suas reservas.</div>
+        <div class="field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu.email@ufpb.br"></div>
+        <div class="field"><label>Senha</label><input type="password" id="loginPwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <button class="btn dark" style="width:100%;" onclick="doLogin()">Entrar</button>
+        <div style="text-align:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--line-100);">
+          <div style="font-size:13px;color:var(--ink-500);margin-bottom:10px;">Ainda não tem conta?</div>
+          <button class="btn" style="width:100%;" onclick="setAuthTab('signup')">+ Novo cadastro</button>
+        </div>
+        <div style="text-align:center;font-size:12px;color:var(--ink-500);margin-top:18px;line-height:1.6;">
+          <strong>Demo coordenação:</strong> admin@labeme.ufpb.br / labeme2026<br>
+          <strong>Demo técnico:</strong> tecnico@labeme.ufpb.br / tecnico2026
+        </div>
+      </div>
+
+      <div id="signupForm" style="display:none;">
+        <div class="auth-title">Crie sua conta</div>
+        <div class="auth-sub">Preencha seu vínculo institucional.</div>
+
+        <div class="field">
+          <label>Foto de perfil (opcional)</label>
+          <label class="file-upload" id="suAvatarLabel">
+            <input type="file" id="suAvatarInput" accept="image/*" capture="user" onchange="onSignupAvatarChange(event)">
+            <div id="suAvatarText">📷 Clique para adicionar uma foto</div>
+          </label>
+          <img id="suAvatarPreview" class="file-preview" style="display:none;">
+        </div>
+
+        <div class="field"><label>Nome completo <span class="req">*</span></label><input type="text" id="suName"></div>
+        <div class="field-row">
+          <div class="field"><label>E-mail <span class="req">*</span></label><input type="email" id="suEmail"></div>
+          <div class="field"><label>WhatsApp</label><input type="tel" id="suPhone" placeholder="(83) 9XXXX-XXXX"></div>
+        </div>
+        <div class="field">
+          <label>Categoria <span class="req">*</span></label>
+          <select id="suCategory" onchange="onCategoryChange()">
+            <option value="">Selecione...</option>
+            <option value="graduacao">Graduação</option>
+            <option value="mestrado">Mestrado</option>
+            <option value="doutorado">Doutorado</option>
+            <option value="prof_depto">Professor do departamento</option>
+            <option value="prof_externo">Professor externo</option>
+            <option value="tecnico">Técnico-administrativo</option>
+            <option value="externo">Externo à UFPB</option>
+          </select>
+        </div>
+        <div class="field" id="advisorField" style="display:none;">
+          <label>Orientador <span class="req">*</span></label>
+          <input type="text" id="suAdvisor" placeholder="Prof. Dr. ...">
+        </div>
+        <div class="field" id="institutionField" style="display:none;">
+          <label>Instituição de origem <span class="req">*</span></label>
+          <input type="text" id="suInstitution">
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Senha <span class="req">*</span></label>
+            <input type="password" id="suPwd" placeholder="Mínimo 6 caracteres">
+          </div>
+          <div class="field"><label>Confirmar senha <span class="req">*</span></label>
+            <input type="password" id="suPwdConfirm" placeholder="Digite novamente">
+          </div>
+        </div>
+        <button class="btn dark" style="width:100%;" onclick="doSignup()">Criar conta</button>
+      </div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ ADMIN VIEW ============ -->
+<section class="view" id="view-admin">
+  <div class="hero">
+    <div class="hero-eyebrow">Administração</div>
+    <h1 class="hero-title">Painel <em>administrativo</em></h1>
+    <p class="hero-sub">Gerencie recursos, aprove reservas, valide devoluções, cadastre usuários e acompanhe estatísticas.</p>
+  </div>
+
+  <main>
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="admin-grid">
+      <aside class="admin-side">
+        <a class="active" data-admintab="pending" onclick="setAdminTab('pending')">
+          <span>⏱</span> Pendentes
+          <span class="badge" id="badgePending" style="display:none;">0</span>
+        </a>
+        <a data-admintab="returns" onclick="setAdminTab('returns')">
+          <span>📷</span> Devoluções
+          <span class="badge" id="badgeReturn" style="display:none;">0</span>
+        </a>
+        <a data-admintab="resources" onclick="setAdminTab('resources')">
+          <span>⚙</span> Recursos
+        </a>
+        <a data-admintab="users" onclick="setAdminTab('users')">
+          <span>👥</span> Usuários
+        </a>
+        <a data-admintab="all-res" onclick="setAdminTab('all-res')">
+          <span>📅</span> Todas as reservas
+        </a>
+        <a data-admintab="settings" onclick="setAdminTab('settings')">
+          <span>⚙</span> Configurações
+        </a>
+      </aside>
+      <div id="adminContent"></div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast-stack" id="toasts"></div>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-logos">
+      <div class="logo-frame">
+        <img src="assets/ufpb-brasao.jpg" alt="UFPB" class="brasao">
+      </div>
+      <div class="logo-frame">
+        <img src="assets/ct-ufpb.jpg" alt="Centro de Tecnologia UFPB" class="ct">
+      </div>
+    </div>
+    <div class="footer-text">
+      <strong>LABEME</strong> — Laboratório de Ensaios de Materiais e Estruturas<br>
+      Centro de Tecnologia · Universidade Federal da Paraíba<br>
+      João Pessoa, PB · Brasil
+    </div>
+  </div>
+</footer>
+
+<!-- ============ SCRIPTS (ordem importa) ============ -->
+<script src="js/db.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/reservations.js"></script>
+<script src="js/profile.js"></script>
+<script src="js/messages.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/tech.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
