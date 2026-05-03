@@ -446,11 +446,11 @@ function onCreateUserCategoryChange() {
   }
 }
 
-function submitCreateUser() {
+async function submitCreateUser() {
   if (!isAdmin()) return toast('Sem permissão.', 'error');
 
   const name = document.getElementById('cuName').value.trim();
-  const email = document.getElementById('cuEmail').value.trim();
+  const email = document.getElementById('cuEmail').value.trim().toLowerCase();
   const phone = document.getElementById('cuPhone').value.trim();
   const category = document.getElementById('cuCategory').value;
   const role = document.getElementById('cuRole').value;
@@ -459,35 +459,36 @@ function submitCreateUser() {
   const pwd = document.getElementById('cuPwd').value;
   const pwdConfirm = document.getElementById('cuPwdConfirm').value;
 
-  if (!name || !email || !category || !pwd) {
-    return toast('Preencha todos os campos obrigatórios.', 'error');
-  }
+  if (!name || !email || !category || !pwd) return toast('Preencha todos os campos obrigatórios.', 'error');
   if (pwd.length < 6) return toast('Senha deve ter pelo menos 6 caracteres.', 'error');
   if (pwd !== pwdConfirm) return toast('As senhas não coincidem.', 'error');
-  if (window.db.users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-    return toast('E-mail já cadastrado.', 'error');
-  }
-  if (['graduacao','mestrado','doutorado'].includes(category) && !advisor) {
-    return toast('Informe o orientador.', 'error');
-  }
-  if (['prof_externo','externo'].includes(category) && !institution) {
-    return toast('Informe a instituição.', 'error');
-  }
+  if (window.db.users.find(u => u.email.toLowerCase() === email.toLowerCase())) return toast('E-mail já cadastrado.', 'error');
+  if (['graduacao','mestrado','doutorado'].includes(category) && !advisor) return toast('Informe o orientador.', 'error');
+  if (['prof_externo','externo'].includes(category) && !institution) return toast('Informe a instituição.', 'error');
 
-  const u = {
-    id: uid('u'),
-    name, email, password: pwd,
-    category, advisor, institution, phone,
-    role,
-    avatar: null,
-    profileReminderShown: false,
-    createdAt: Date.now()
-  };
-  window.db.users.push(u);
-  saveDB();
-  closeModal();
-  toast(`Usuário ${name} criado com sucesso.`, 'success');
-  renderAdmin();
+  try {
+    const authUid = await createAuthAccount(email, pwd);
+    const u = {
+      id: authUid,
+      name, email,
+      category, advisor, institution, phone,
+      role,
+      avatar: null,
+      profileReminderShown: false,
+      createdAt: Date.now()
+    };
+    window.db.users.push(u);
+    await saveDB();
+    closeModal();
+    toast(`Usuário ${name} criado com sucesso no Authentication e no Firestore.`, 'success');
+    renderAdmin();
+  } catch (err) {
+    console.error(err);
+    const msg = err.code === 'auth/email-already-in-use'
+      ? 'E-mail já existe no Firebase Authentication.'
+      : 'Erro ao criar usuário: ' + (err.message || err.code);
+    toast(msg, 'error');
+  }
 }
 
 function openUserModal(id) {
@@ -528,9 +529,9 @@ function openUserModal(id) {
       <div class="field"><label>Orientador / Instituição</label>
         <input type="text" id="uAdvisor" value="${escapeHtml(u.advisor||u.institution||'')}">
       </div>
-      <div class="field"><label>Nova senha (opcional)</label>
-        <input type="password" id="uNewPwd" placeholder="Deixe em branco para manter a senha atual">
-        <div class="field-help">Útil quando o usuário esqueceu a senha.</div>
+      <div class="field"><label>Redefinição de senha</label>
+        <div class="field-help">Por segurança, a senha não é salva no sistema. Use o botão abaixo para enviar um link de redefinição ao e-mail cadastrado.</div>
+        <button type="button" class="btn" onclick="sendUserPasswordReset('${u.id}')">Enviar link de redefinição de senha</button>
       </div>
     </div>
     <div class="modal-foot">
@@ -542,7 +543,7 @@ function openUserModal(id) {
   openModal(html);
 }
 
-function saveUser(id) {
+async function saveUser(id) {
   const u = getUser(id);
   u.name = document.getElementById('uName').value.trim();
   u.category = document.getElementById('uCategory').value;
@@ -550,26 +551,38 @@ function saveUser(id) {
     u.role = document.getElementById('uRole').value;
   }
   const advInst = document.getElementById('uAdvisor').value.trim();
-  if (['graduacao','mestrado','doutorado'].includes(u.category)) u.advisor = advInst;
-  else u.institution = advInst;
-
-  const newPwd = document.getElementById('uNewPwd').value;
-  if (newPwd) {
-    if (newPwd.length < 6) return toast('Nova senha deve ter pelo menos 6 caracteres.', 'error');
-    u.password = newPwd;
+  if (['graduacao','mestrado','doutorado'].includes(u.category)) {
+    u.advisor = advInst;
+    u.institution = '';
+  } else {
+    u.institution = advInst;
+    u.advisor = '';
   }
-  saveDB();
+
+  await saveDB();
   closeModal();
   toast('Usuário atualizado.', 'success');
   renderAdmin();
 }
 
-function deleteUser(id) {
-  if (!confirm('Excluir este usuário? As reservas dele serão mantidas no histórico.')) return;
+async function sendUserPasswordReset(id) {
+  const u = getUser(id);
+  if (!u?.email) return toast('Usuário sem e-mail cadastrado.', 'error');
+  try {
+    await sendPasswordReset(u.email);
+    toast('Link de redefinição enviado para ' + u.email, 'success');
+  } catch (err) {
+    console.error(err);
+    toast('Erro ao enviar redefinição: ' + (err.message || err.code), 'error');
+  }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Remover este usuário do Firestore? As reservas dele serão mantidas no histórico. A conta do Firebase Authentication deve ser desativada/removida pelo console do Firebase, se necessário.')) return;
   window.db.users = window.db.users.filter(u => u.id !== id);
-  saveDB();
+  await saveDB();
   closeModal();
-  toast('Usuário removido.', 'warn');
+  toast('Usuário removido do Firestore.', 'warn');
   renderAdmin();
 }
 
@@ -666,12 +679,11 @@ function saveSettings() {
   toast('Configurações salvas.', 'success');
 }
 
-function resetAll() {
-  if (!confirm('Apagar TODOS os dados? Isso não pode ser desfeito.')) return;
-  localStorage.removeItem(window.DB_KEY);
-  localStorage.removeItem(window.SESSION_KEY);
-  if (window.SEED_FLAG) localStorage.removeItem(window.SEED_FLAG);
-  location.reload();
+async function resetAll() {
+  if (!isAdmin()) return toast('Sem permissão.', 'error');
+  await wipeFirestoreData();
+  renderAdmin();
+  renderCalendar();
 }
 
 window.adminTab = adminTab;
@@ -686,6 +698,7 @@ window.onCreateUserCategoryChange = onCreateUserCategoryChange;
 window.submitCreateUser = submitCreateUser;
 window.openUserModal = openUserModal;
 window.saveUser = saveUser;
+window.sendUserPasswordReset = sendUserPasswordReset;
 window.deleteUser = deleteUser;
 window.saveSettings = saveSettings;
 window.resetAll = resetAll;

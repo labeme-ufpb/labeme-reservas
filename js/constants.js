@@ -128,9 +128,22 @@ function toast(msg, type='') {
   setTimeout(() => el.remove(), 4000);
 }
 
-function fileToDataURL(file) {
+async function fileToDataURL(file) {
+  if (!file) return null;
+
+  // Em produção, quando o usuário está autenticado, a imagem é enviada ao Firebase Storage
+  // e o sistema salva apenas a URL pública assinada de download.
+  try {
+    if (typeof uploadFileToStorage === 'function' && window.firebaseAuth?.currentUser) {
+      const url = await uploadFileToStorage(file, 'uploads');
+      if (url) return url;
+    }
+  } catch (err) {
+    console.warn('Falha no upload para Storage. Usando base64 como fallback:', err);
+  }
+
+  // Fallback para pré-cadastro antes do login ou para execução local sem Firebase.
   return new Promise((resolve, reject) => {
-    if (!file) return resolve(null);
     if (file.size > 2 * 1024 * 1024) {
       return resizeImage(file, 1200).then(resolve).catch(reject);
     }

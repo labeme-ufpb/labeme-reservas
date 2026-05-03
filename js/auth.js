@@ -1,31 +1,69 @@
 /* ============================================================
-   auth.js — Autenticação e cadastro (v3)
-   Inclui:
-   - Confirmação de senha no cadastro
-   - Foto de perfil opcional no cadastro
-   - Categoria 'tecnico' não promove automaticamente: admin precisa promover manualmente
-   - Lembrete de foto no primeiro acesso
+   auth.js — Autenticação Firebase e cadastro (v5)
    ============================================================ */
 
-let session = JSON.parse(localStorage.getItem(window.SESSION_KEY) || 'null');
+let firebaseUser = null;
+let authInitialized = false;
+let pendingInitialRoute = true;
 
 function currentUser() {
-  return session ? getUser(session.userId) : null;
+  return firebaseUser ? getUser(firebaseUser.uid) : null;
+}
+
+function currentUserId() {
+  return firebaseUser ? firebaseUser.uid : null;
 }
 
 function isAdmin() {
   const u = currentUser();
-  return u && u.role === 'admin';
+  return !!(u && u.role === 'admin');
 }
 
 function isTechnician() {
   const u = currentUser();
-  return u && (u.role === 'technician' || u.role === 'admin');
+  return !!(u && (u.role === 'technician' || u.role === 'admin'));
 }
 
-// Pode aprovar reservas: técnicos e admins
 function canApproveReservations() {
   return isTechnician();
+}
+
+function waitForUserProfile(uid, timeoutMs = 6000) {
+  return new Promise(resolve => {
+    const existing = getUser(uid);
+    if (existing) return resolve(existing);
+    const start = Date.now();
+    const timer = setInterval(() => {
+      const u = getUser(uid);
+      if (u || Date.now() - start > timeoutMs) {
+        clearInterval(timer);
+        resolve(u || null);
+      }
+    }, 150);
+  });
+}
+
+function initAuthListener() {
+  if (!window.firebaseAuth || authInitialized) return;
+  authInitialized = true;
+  firebaseAuth.onAuthStateChanged(async user => {
+    firebaseUser = user || null;
+    if (user) {
+      startPrivateDataSync();
+      await waitForUserProfile(user.uid, 2500);
+    } else {
+      stopPrivateDataSync();
+    }
+    refreshAuthUI();
+
+    if (pendingInitialRoute) {
+      pendingInitialRoute = false;
+      const u = currentUser();
+      if (u?.role === 'technician') showView('tech');
+      else if (u?.role === 'admin') showView('admin');
+      else showView('calendar');
+    }
+  });
 }
 
 function setAuthTab(tab) {
@@ -46,6 +84,7 @@ function onCategoryChange() {
 function onSignupAvatarChange(e) {
   const file = e.target.files[0];
   if (!file) return;
+  // Antes do cadastro o usuário ainda não está autenticado; usa base64 provisório.
   fileToDataURL(file).then(dataUrl => {
     window._signupAvatar = dataUrl;
     document.getElementById('suAvatarPreview').src = dataUrl;
@@ -55,31 +94,54 @@ function onSignupAvatarChange(e) {
   });
 }
 
-function doLogin() {
+async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const pwd = document.getElementById('loginPwd').value;
-  const u = window.db.users.find(x =>
-    x.email.toLowerCase() === email && x.password === pwd
-  );
-  if (!u) return toast('E-mail ou senha incorretos.', 'error');
-  session = { userId: u.id };
-  localStorage.setItem(window.SESSION_KEY, JSON.stringify(session));
-  toast(`Bem-vindo, ${u.name.split(' ')[0]}!`, 'success');
-  refreshAuthUI();
+  if (!email || !pwd) return toast('Informe e-mail e senha.', 'error');
 
-  // Lembrete de foto: mostra UMA vez se ainda não tem avatar
-  if (!u.avatar && !u.profileReminderShown) {
-    setTimeout(() => showProfilePhotoReminder(), 600);
-  } else {
-    if (u.role === 'admin') showView('admin');
-    else if (u.role === 'technician') showView('tech');
-    else showView('calendar');
+  try {
+    const cred = await firebaseAuth.signInWithEmailAndPassword(email, pwd);
+    firebaseUser = cred.user;
+    startPrivateDataSync();
+    let u = await waitForUserProfile(cred.user.uid, 5000);
+
+    if (!u) {
+      // Caso excepcional: conta existe no Auth, mas ainda não há perfil no Firestore.
+      const profile = await fetchUserDoc(cred.user.uid);
+      if (profile) {
+        window.db.users.push(profile);
+        u = profile;
+      }
+    }
+
+    if (!u) {
+      toast('Login realizado, mas o perfil ainda não está cadastrado no Firestore. Cadastre o usuário na coleção users.', 'warn');
+      showView('calendar');
+      return;
+    }
+
+    toast(`Bem-vindo, ${u.name.split(' ')[0]}!`, 'success');
+    refreshAuthUI();
+
+    if (!u.avatar && !u.profileReminderShown) {
+      setTimeout(() => showProfilePhotoReminder(), 600);
+    } else {
+      if (u.role === 'admin') showView('admin');
+      else if (u.role === 'technician') showView('tech');
+      else showView('calendar');
+    }
+  } catch (err) {
+    console.error(err);
+    const msg = err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential'
+      ? 'E-mail ou senha incorretos.'
+      : 'Erro no login: ' + (err.message || err.code);
+    toast(msg, 'error');
   }
 }
 
-function doSignup() {
+async function doSignup() {
   const name = document.getElementById('suName').value.trim();
-  const email = document.getElementById('suEmail').value.trim();
+  const email = document.getElementById('suEmail').value.trim().toLowerCase();
   const phone = document.getElementById('suPhone').value.trim();
   const category = document.getElementById('suCategory').value;
   const advisor = document.getElementById('suAdvisor').value.trim();
@@ -87,56 +149,52 @@ function doSignup() {
   const pwd = document.getElementById('suPwd').value;
   const pwdConfirm = document.getElementById('suPwdConfirm').value;
 
-  if (!name || !email || !category || !pwd) {
-    return toast('Preencha todos os campos obrigatórios.', 'error');
-  }
-  if (pwd.length < 6) {
-    return toast('Senha deve ter pelo menos 6 caracteres.', 'error');
-  }
-  if (pwd !== pwdConfirm) {
-    return toast('As senhas não coincidem.', 'error');
-  }
-  if (window.db.users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-    return toast('E-mail já cadastrado.', 'error');
-  }
-  if (['graduacao','mestrado','doutorado'].includes(category) && !advisor) {
-    return toast('Informe o orientador.', 'error');
-  }
-  if (['prof_externo','externo'].includes(category) && !institution) {
-    return toast('Informe a instituição.', 'error');
-  }
+  if (!name || !email || !category || !pwd) return toast('Preencha todos os campos obrigatórios.', 'error');
+  if (pwd.length < 6) return toast('Senha deve ter pelo menos 6 caracteres.', 'error');
+  if (pwd !== pwdConfirm) return toast('As senhas não coincidem.', 'error');
+  if (['graduacao','mestrado','doutorado'].includes(category) && !advisor) return toast('Informe o orientador.', 'error');
+  if (['prof_externo','externo'].includes(category) && !institution) return toast('Informe a instituição.', 'error');
 
-  // IMPORTANTE: Auto-cadastro NUNCA dá privilégios elevados
-  // Mesmo categoria 'tecnico' começa como user comum; admin precisa promover manualmente
-  const role = 'user';
+  try {
+    const cred = await firebaseAuth.createUserWithEmailAndPassword(email, pwd);
+    firebaseUser = cred.user;
 
-  const u = {
-    id: uid('u'),
-    name, email, password: pwd,
-    category, advisor, institution, phone,
-    role,
-    avatar: window._signupAvatar || null,
-    profileReminderShown: !!window._signupAvatar,  // se já enviou foto, não precisa lembrete
-    createdAt: Date.now()
-  };
-  window.db.users.push(u);
-  saveDB();
-  window._signupAvatar = null;
-  session = { userId: u.id };
-  localStorage.setItem(window.SESSION_KEY, JSON.stringify(session));
-  toast('Cadastro realizado com sucesso!', 'success');
-  refreshAuthUI();
+    const u = {
+      id: cred.user.uid,
+      name, email,
+      category, advisor, institution, phone,
+      role: 'user', // autocadastro nunca cria técnico/admin
+      avatar: window._signupAvatar || null,
+      profileReminderShown: !!window._signupAvatar,
+      createdAt: Date.now()
+    };
 
-  if (!u.avatar) {
-    setTimeout(() => showProfilePhotoReminder(), 600);
-  } else {
-    showView('calendar');
+    window.db.users.push(u);
+    await saveDB();
+    window._signupAvatar = null;
+    startPrivateDataSync();
+    toast('Cadastro realizado com sucesso!', 'success');
+    refreshAuthUI();
+
+    if (!u.avatar) setTimeout(() => showProfilePhotoReminder(), 600);
+    else showView('calendar');
+  } catch (err) {
+    console.error(err);
+    const msg = err.code === 'auth/email-already-in-use'
+      ? 'E-mail já cadastrado.'
+      : 'Erro no cadastro: ' + (err.message || err.code);
+    toast(msg, 'error');
   }
 }
 
-function doLogout() {
-  session = null;
-  localStorage.removeItem(window.SESSION_KEY);
+async function doLogout() {
+  try {
+    await firebaseAuth.signOut();
+  } catch (err) {
+    console.warn(err);
+  }
+  firebaseUser = null;
+  stopPrivateDataSync();
   refreshAuthUI();
   showView('calendar');
   toast('Sessão encerrada.');
@@ -144,8 +202,10 @@ function doLogout() {
 
 function refreshAuthUI() {
   const u = currentUser();
+  const navAuth = document.getElementById('nav-auth');
+  if (!navAuth) return;
   document.getElementById('nav-auth').style.display = u ? 'none' : 'inline-flex';
-  document.getElementById('nav-logout').style.display = u ? 'inline-flex' : 'none';
+  document.getElementById('nav-logout').style.display = firebaseUser ? 'inline-flex' : 'none';
   document.getElementById('nav-myres').style.display = u ? 'inline-flex' : 'none';
   document.getElementById('nav-profile').style.display = u ? 'inline-flex' : 'none';
   document.getElementById('nav-messages').style.display = u ? 'inline-flex' : 'none';
@@ -153,7 +213,6 @@ function refreshAuthUI() {
   document.getElementById('nav-tech').style.display = (u && (u.role === 'technician' || u.role === 'admin')) ? 'inline-flex' : 'none';
   document.getElementById('nav-admin').style.display = (u && u.role === 'admin') ? 'inline-flex' : 'none';
 
-  // Avatar + nome no topbar
   const avatarSlot = document.getElementById('userAvatarSlot');
   if (avatarSlot) {
     if (u) {
@@ -166,33 +225,25 @@ function refreshAuthUI() {
       avatarSlot.style.display = 'none';
     }
   }
-
-  // Atualiza badges (mensagens não lidas)
   updateNavBadges();
 }
 
 function updateNavBadges() {
   const u = currentUser();
-  if (!u) return;
   const msgBadge = document.getElementById('msgNavBadge');
-  if (msgBadge) {
-    const unread = (window.db.messages || []).filter(m =>
-      m.toUserId === u.id && !m.readAt
-    ).length;
-    if (unread > 0) {
-      msgBadge.textContent = unread;
-      msgBadge.style.display = 'grid';
-    } else {
-      msgBadge.style.display = 'none';
-    }
+  if (!u || !msgBadge) return;
+  const unread = (window.db.messages || []).filter(m => m.toUserId === u.id && !m.readAt).length;
+  if (unread > 0) {
+    msgBadge.textContent = unread;
+    msgBadge.style.display = 'grid';
+  } else {
+    msgBadge.style.display = 'none';
   }
 }
 
-// ========== PROFILE PHOTO REMINDER ==========
 function showProfilePhotoReminder() {
   const u = currentUser();
   if (!u || u.avatar) return;
-
   const html = `
     <div class="modal-head">
       <div>
@@ -214,8 +265,7 @@ function showProfilePhotoReminder() {
     <div class="modal-foot">
       <button class="btn" onclick="dismissProfileReminder()">Mais tarde</button>
       <button class="btn dark" id="reminderSaveBtn" onclick="saveReminderPhoto()" disabled>Salvar foto</button>
-    </div>
-  `;
+    </div>`;
   openModal(html);
 }
 
@@ -232,12 +282,12 @@ function onReminderPhotoChange(e) {
   });
 }
 
-function saveReminderPhoto() {
+async function saveReminderPhoto() {
   const u = currentUser();
   if (!u || !window._reminderPhoto) return;
   u.avatar = window._reminderPhoto;
   u.profileReminderShown = true;
-  saveDB();
+  await saveDB();
   window._reminderPhoto = null;
   closeModal();
   toast('Foto de perfil salva!', 'success');
@@ -247,11 +297,11 @@ function saveReminderPhoto() {
   else showView('calendar');
 }
 
-function dismissProfileReminder() {
+async function dismissProfileReminder() {
   const u = currentUser();
   if (u) {
     u.profileReminderShown = true;
-    saveDB();
+    await saveDB();
   }
   closeModal();
   if (u?.role === 'admin') showView('admin');
@@ -259,11 +309,12 @@ function dismissProfileReminder() {
   else showView('calendar');
 }
 
-window.session = session;
 window.currentUser = currentUser;
+window.currentUserId = currentUserId;
 window.isAdmin = isAdmin;
 window.isTechnician = isTechnician;
 window.canApproveReservations = canApproveReservations;
+window.initAuthListener = initAuthListener;
 window.setAuthTab = setAuthTab;
 window.onCategoryChange = onCategoryChange;
 window.onSignupAvatarChange = onSignupAvatarChange;

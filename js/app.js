@@ -94,11 +94,6 @@ function renderResources() {
 window.addEventListener('DOMContentLoaded', () => {
   window.db = loadDB();
 
-  // Aplica dados de demonstração no primeiro acesso
-  if (typeof applySeedData === 'function') {
-    applySeedData();
-  }
-
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
@@ -108,15 +103,12 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   refreshAuthUI();
+  initAuthListener();
 
-  // Polling leve para atualizar badges de mensagens (a cada 5s)
+  // Atualização leve de badges e mensagens; os dados vêm do Firestore em tempo real.
   setInterval(() => {
     if (currentUser()) {
-      // Recarrega DB caso outra aba tenha alterado (no protótipo localStorage)
-      const fresh = loadDB();
-      window.db.messages = fresh.messages;
       updateNavBadges();
-      // Se está na tela de mensagens, atualiza — MAS só se o usuário NÃO estiver digitando
       const msgInput = document.getElementById('msgInput');
       const userIsTyping = msgInput && (document.activeElement === msgInput || msgInput.value.length > 0);
       if (document.getElementById('view-messages').classList.contains('active')
@@ -127,10 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 5000);
 
-  const u = currentUser();
-  if (u?.role === 'technician') showView('tech');
-  else if (u?.role === 'admin') showView('admin');
-  else showView('calendar');
+  showView('calendar');
 });
 
 window.showView = showView;

@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+    function hasProfile() {
+      return signedIn() && exists(userPath(request.auth.uid));
+    }
+    function userRole() {
+      return hasProfile() ? get(userPath(request.auth.uid)).data.role : null;
+    }
+    function isAdmin() {
+      return userRole() == 'admin';
+    }
+    function isTechnician() {
+      return userRole() == 'admin' || userRole() == 'technician';
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /resources/{resourceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        isAdmin() ||
+        (request.auth.uid == uid && request.resource.data.role == 'user')
+      );
+      allow update: if signedIn() && (
+        isAdmin() ||
+        (request.auth.uid == uid && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /reservations/{reservationId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if signedIn() && (
+        isTechnician() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /stock/{stockId} {
+      allow read: if signedIn();
+      allow write: if isTechnician();
+    }
+
+    match /messages/{messageId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update: if signedIn() && (
+        isAdmin() ||
+        resource.data.toUserId == request.auth.uid ||
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}

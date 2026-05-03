@@ -127,7 +127,7 @@ function onProfileAvatarChange(e) {
   });
 }
 
-function saveProfile() {
+async function saveProfile() {
   const u = currentUser();
   if (!u) return;
 
@@ -143,12 +143,12 @@ function saveProfile() {
   const instField = document.getElementById('pfInstitution');
   if (instField) u.institution = instField.value.trim();
 
-  saveDB();
+  await saveDB();
   refreshAuthUI();
   toast('Perfil atualizado.', 'success');
 }
 
-function changePassword() {
+async function changePassword() {
   const u = currentUser();
   if (!u) return;
 
@@ -157,17 +157,27 @@ function changePassword() {
   const confirm = document.getElementById('pfPwdConfirm').value;
 
   if (!current || !next || !confirm) return toast('Preencha todos os campos de senha.', 'error');
-  if (current !== u.password) return toast('Senha atual incorreta.', 'error');
   if (next.length < 6) return toast('Nova senha deve ter pelo menos 6 caracteres.', 'error');
   if (next !== confirm) return toast('A confirmação não confere.', 'error');
 
-  u.password = next;
-  saveDB();
+  try {
+    const authUser = window.firebaseAuth?.currentUser;
+    if (!authUser) return toast('Sessão inválida. Faça login novamente.', 'error');
+    const credential = firebase.auth.EmailAuthProvider.credential(authUser.email, current);
+    await authUser.reauthenticateWithCredential(credential);
+    await authUser.updatePassword(next);
 
-  document.getElementById('pfPwdCurrent').value = '';
-  document.getElementById('pfPwdNew').value = '';
-  document.getElementById('pfPwdConfirm').value = '';
-  toast('Senha alterada com sucesso.', 'success');
+    document.getElementById('pfPwdCurrent').value = '';
+    document.getElementById('pfPwdNew').value = '';
+    document.getElementById('pfPwdConfirm').value = '';
+    toast('Senha alterada com sucesso.', 'success');
+  } catch (err) {
+    console.error(err);
+    const msg = err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential'
+      ? 'Senha atual incorreta.'
+      : 'Erro ao alterar senha: ' + (err.message || err.code);
+    toast(msg, 'error');
+  }
 }
 
 window.renderProfile = renderProfile;

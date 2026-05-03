@@ -17,12 +17,9 @@
 </head>
 <body>
 
-<div class="demo-banner">
-  <strong>Modo de demonstração</strong> — dados pré-cadastrados (10 equipamentos, 10 materiais, 7 reservas).
-  Coordenação: <strong>admin@labeme.ufpb.br</strong> / <strong>labeme2026</strong> ·
-  Técnico: <strong>tecnico@labeme.ufpb.br</strong> / <strong>tecnico2026</strong> ·
-  Aluno: <strong>maria.silva@academico.ufpb.br</strong> / <strong>aluno123</strong>
-</div>
+<div class="production-banner">Sistema em implantação real com Firebase — acesso mediante cadastro e perfis autorizados.</div>
+
+
 
 <header class="topbar">
   <div class="topbar-inner">
@@ -185,8 +182,7 @@
           <button class="btn" style="width:100%;" onclick="setAuthTab('signup')">+ Novo cadastro</button>
         </div>
         <div style="text-align:center;font-size:12px;color:var(--ink-500);margin-top:18px;line-height:1.6;">
-          <strong>Demo coordenação:</strong> admin@labeme.ufpb.br / labeme2026<br>
-          <strong>Demo técnico:</strong> tecnico@labeme.ufpb.br / tecnico2026
+          O acesso é autenticado pelo Firebase. Solicite seu cadastro à coordenação do LABEME quando necessário.
         </div>
       </div>
 
@@ -309,6 +305,13 @@
 </footer>
 
 <!-- ============ SCRIPTS (ordem importa) ============ -->
+<!-- Firebase SDKs em modo compatível com site estático no GitHub Pages -->
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/constants.js"></script>
 <script src="js/auth.js"></script>
@@ -319,7 +322,6 @@
 <script src="js/stock.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/tech.js"></script>
-<script src="js/seed.js"></script>
 <script src="js/app.js"></script>
 
 </body>

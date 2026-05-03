@@ -1966,3 +1966,19 @@ details[open] summary { margin-bottom: 6px; }
 .mt-6 { margin-top: 24px; }
 .flex-row { display: flex; gap: 8px; align-items: center; }
 .flex-end { justify-content: flex-end; }
+
+.production-banner {
+  background: linear-gradient(135deg, #d8e3eb 0%, #eef4f7 100%);
+  border-bottom: 1px solid var(--line-200);
+  padding: 10px 28px;
+  font-size: 13px;
+  color: var(--labeme-navy-dark);
+  text-align: center;
+  font-weight: 500;
+}
+@media (max-width: 768px) {
+  .production-banner { padding: 8px 12px; font-size: 11px; line-height: 1.4; }
+}
+@media (max-width: 480px) {
+  .production-banner { font-size: 10px; padding: 6px 10px; }
+}
