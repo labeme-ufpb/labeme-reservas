@@ -347,14 +347,22 @@ async function toggleUserActive(id) {
 }
 async function deleteUser(id) {
   const u = getUser(id); if (!u) return;
-  if (window.db.reservations.some(r => r.userId === id)) {
-    toast('Este usuário tem histórico de reservas. Use "Desativar conta" para preservar o histórico.', 'warn');
-    return;
+  const resList = window.db.reservations.filter(r => r.userId === id);
+  let ans;
+  if (resList.length) {
+    // Contas de teste: apaga também as reservas. Para contas reais, o certo é desativar (preserva o histórico).
+    ans = await askConfirm({ title: 'Excluir usuário e reservas',
+      body: `<strong>${escapeHtml(u.name)}</strong> tem <strong>${resList.length} reserva(s)</strong> no histórico. Excluir a conta apaga também essas reservas e as mensagens trocadas com você — use só para contas de teste. Para quem já usou o laboratório, prefira <strong>Desativar conta</strong>.`,
+      okLabel: `Excluir conta e ${resList.length} reserva(s)`, danger: true });
+    if (!ans) return;
+    window.db.reservations = window.db.reservations.filter(r => r.userId !== id);
+    window.db.messages = window.db.messages.filter(m => m.fromUserId !== id && m.toUserId !== id);
+  } else {
+    ans = await askConfirm({ title: 'Excluir usuário', body: `Excluir o cadastro de <strong>${escapeHtml(u.name)}</strong>? Para impedir o acesso de vez, prefira "Desativar conta".`, okLabel: 'Excluir', danger: true });
+    if (!ans) return;
   }
-  const ans = await askConfirm({ title: 'Excluir usuário', body: `Excluir o cadastro de <strong>${escapeHtml(u.name)}</strong>? Para impedir o acesso de vez, prefira "Desativar conta".`, okLabel: 'Excluir', danger: true });
-  if (!ans) return;
   window.db.users = window.db.users.filter(x => x.id !== id);
-  saveDB(); toast('Usuário excluído.', 'warn'); renderAdmin();
+  saveDB(); closeModal(); toast('Usuário excluído.', 'warn'); renderAdmin();
 }
 
 /* ---------------- Todas as reservas ---------------- */
