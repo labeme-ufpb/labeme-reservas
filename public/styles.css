@@ -2487,3 +2487,26 @@ body.nav-compact .nav-toggle { margin-left: auto; }
 .boot-splash span::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: bootspin .8s linear infinite; }
 body.ready:not(.loading-data) .boot-splash { opacity: 0; pointer-events: none; }
 @keyframes bootspin { to { transform: rotate(360deg); } }
+
+/* ---------- v11.1 — Tabela de usuários sem rolagem lateral ---------- */
+.users-table { width: 100%; }
+.users-table tr.clickable { cursor: pointer; }
+.users-table tr.clickable:hover td { background: var(--navy-tint, #eef3f8); }
+.users-table .col-av { width: 44px; padding-right: 0; }
+.users-table .col-name { min-width: 0; word-break: break-word; }
+.users-table .col-num { text-align: center; }
+.users-table .col-edit { width: 48px; position: sticky; right: 0; background: var(--white, #fff); }
+.users-table tr.clickable:hover .col-edit { background: var(--navy-tint, #eef3f8); }
+.users-mobile-meta { display: none; margin-top: 4px; font-size: 12px; }
+@media (max-width: 1280px) { .users-table .col-adv { display: none; } }
+@media (max-width: 1100px) { .users-table .col-last, .users-table .col-cat { display: none; } }
+@media (max-width: 720px) {
+  .users-table .col-role, .users-table .col-num { display: none; }
+  .users-table td, .users-table th { padding: 10px 8px; }
+  .users-mobile-meta { display: block; }
+}
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.users-table .col-name { min-width: 200px; }
+.users-table .col-name .small { word-break: break-all; }
+@media (max-width: 1500px) { .users-table .col-adv { display: none; } }
+@media (max-width: 720px) { .users-table .col-name { min-width: 0; } }

@@ -224,18 +224,20 @@ function adminUsers() {
     <button class="btn" onclick="exportUsersCSV()">${icon('download', 16)} CSV</button>
     <button class="btn dark" onclick="openCreateUserModal()">${icon('plus', 16)} Cadastrar</button>`;
   return panel('Usuários', `${window.db.users.length} contas · ${window.db.users.filter(u => u.active === false).length} desativadas`,
-    `<div class="panel-body table-wrap"><table class="data-table">
-      <thead><tr><th></th><th>Nome</th><th>Categoria</th><th>Papel</th><th>Orientador / instituição</th><th>Reservas</th><th>Último acesso</th><th></th></tr></thead>
-      <tbody>${list.map(u => `<tr class="${u.active === false ? 'row-muted' : ''}">
-        <td>${renderAvatar(u, 'small')}</td>
-        <td><strong>${escapeHtml(u.name)}</strong><div class="small muted">${escapeHtml(u.email)}</div></td>
-        <td><span class="pill auto">${escapeHtml(CATEGORY_LABELS[u.category] || '—')}</span></td>
-        <td>${u.role === 'admin' ? '<span class="pill approved">Coordenação</span>' : u.role === 'technician' ? '<span class="pill completed">Técnico</span>' : 'Usuário'}${u.active === false ? ' <span class="pill denied">Desativado</span>' : ''}</td>
-        <td class="small">${escapeHtml(u.advisor || u.institution || '—')}</td>
-        <td>${counts[u.id] || 0}</td>
-        <td class="small muted">${u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : 'nunca'}</td>
-        <td class="right"><button class="icon-btn" title="Editar" aria-label="Editar ${escapeHtml(u.name)}" onclick="openUserModal('${u.id}')">${icon('edit', 16)}</button></td>
-      </tr>`).join('')}</tbody></table></div>`, actions);
+    `<div class="panel-body table-wrap"><table class="data-table users-table">
+      <thead><tr><th class="col-av"></th><th>Nome</th><th class="col-cat">Categoria</th><th class="col-role">Papel</th><th class="col-adv">Orientador / instituição</th><th class="col-num">Reservas</th><th class="col-last">Último acesso</th><th class="col-edit"><span class="visually-hidden">Editar</span></th></tr></thead>
+      <tbody>${list.map(u => {
+        const role = (u.role === 'admin' ? '<span class="pill approved">Coordenação</span>' : u.role === 'technician' ? '<span class="pill completed">Técnico</span>' : 'Usuário') + (u.active === false ? ' <span class="pill denied">Desativado</span>' : '');
+        return `<tr class="clickable ${u.active === false ? 'row-muted' : ''}" onclick="openUserModal('${u.id}')">
+        <td class="col-av">${renderAvatar(u, 'small')}</td>
+        <td class="col-name"><strong>${escapeHtml(u.name)}</strong><div class="small muted">${escapeHtml(u.email)}</div><div class="users-mobile-meta">${role}</div></td>
+        <td class="col-cat"><span class="pill auto">${escapeHtml(CATEGORY_LABELS[u.category] || '—')}</span></td>
+        <td class="col-role">${role}</td>
+        <td class="col-adv small">${escapeHtml(u.advisor || u.institution || '—')}</td>
+        <td class="col-num">${counts[u.id] || 0}</td>
+        <td class="col-last small muted">${u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : 'nunca'}</td>
+        <td class="col-edit right"><button class="icon-btn" title="Editar" aria-label="Editar ${escapeHtml(u.name)}" onclick="event.stopPropagation();openUserModal('${u.id}')">${icon('edit', 16)}</button></td>
+      </tr>`; }).join('')}</tbody></table></div>`, actions);
 }
 function exportUsersCSV() {
   const rows = [['Nome','E-mail','WhatsApp','Categoria','Papel','Orientador','Instituição','Ativo','Cadastro','Último acesso']];
