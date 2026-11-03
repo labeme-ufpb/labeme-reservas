@@ -33,6 +33,7 @@ function authErrorMessage(e) {
     'auth/network-request-failed': 'Sem conexão com a internet.',
     'auth/requires-recent-login': 'Por segurança, saia e entre de novo antes de trocar a senha.'
   };
+  if (e && /requests-from-referer|api-key-not-valid|unauthorized-domain/.test(e.code || '')) return 'O site ainda não está autorizado no Firebase. Avise a coordenação do LABEME.';
   return m[e && e.code] || ('Não foi possível concluir: ' + (e && e.message || 'erro desconhecido'));
 }
 

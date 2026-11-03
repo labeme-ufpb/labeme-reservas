@@ -32,11 +32,10 @@ async function submitForgotPassword() {
   const email = document.getElementById('fpEmail')?.value.trim().toLowerCase();
   if (!email || !validEmail(email)) return toast('Informe um e-mail válido.', 'error');
   closeModal();
-  try { await fb.auth.sendPasswordResetEmail(email, { url: location.origin + location.pathname }); }
+  try { await sendResetEmail(email); }
   catch (e) {
-    if (e.code === 'auth/too-many-requests') return toast(authErrorMessage(e), 'error');
-    if (e.code === 'auth/network-request-failed') return toast(authErrorMessage(e), 'error');
-    // e-mail inexistente: mesma resposta, sem revelar
+    // e-mail não cadastrado: mesma resposta, sem revelar. Qualquer outro erro é mostrado.
+    if (e.code !== 'auth/user-not-found') { console.error(e); return toast(authErrorMessage(e), 'error'); }
   }
   showGenericResetResponse(email);
 }
@@ -54,12 +53,21 @@ function showGenericResetResponse(email) {
     <div class="modal-foot"><button class="btn dark" onclick="closeModal()">Entendi</button></div>`);
 }
 
+// Envia o e-mail de redefinição; se o endereço de retorno não estiver autorizado, envia sem ele
+async function sendResetEmail(email) {
+  try { await fb.auth.sendPasswordResetEmail(email, { url: location.origin + location.pathname }); }
+  catch (e) {
+    if (e.code === 'auth/unauthorized-continue-uri' || e.code === 'auth/invalid-continue-uri') await fb.auth.sendPasswordResetEmail(email);
+    else throw e;
+  }
+}
+
 /* Coordenação: envia o e-mail de redefinição para um usuário (ex.: pedido presencial) */
 async function adminGenerateResetLink(userId) {
   if (!isAdmin()) return;
   const u = getUser(userId); if (!u) return;
   try {
-    await fb.auth.sendPasswordResetEmail(u.email, { url: location.origin + location.pathname });
+    await sendResetEmail(u.email);
     toast(`Link de nova senha enviado para ${u.email}.`, 'success');
   } catch (e) { toast(authErrorMessage(e), 'error'); }
 }
