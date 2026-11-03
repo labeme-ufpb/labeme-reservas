@@ -20,9 +20,9 @@ Agendamento de equipamentos, espaços e estoque de materiais do Laboratório de 
 
 ## Publicação
 
-- Todo envio para a branch `main` publica o site automaticamente (GitHub Actions → `.github/workflows/firebase-hosting-merge.yml`).
-- Pull requests geram um link de prévia, sem afetar o site oficial.
-- Regras de segurança: `firebase deploy --only firestore:rules,storage` (Cloud Shell ou computador com o Firebase CLI).
+- Todo envio para a branch `main` publica o site, as regras do Firestore e as regras do Storage (GitHub Actions → `.github/workflows/firebase-hosting-merge.yml`).
+- A autenticação do GitHub no Google é sem chave secreta (Workload Identity Federation), configurada uma vez por `scripts/setup-github-deploy.sh` no Cloud Shell. Só este repositório pode publicar.
+- Para voltar a uma versão anterior: console do Firebase → Hosting → histórico de versões → Reverter.
 
 ## Primeiro acesso
 

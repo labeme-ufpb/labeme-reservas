@@ -1,17 +1,27 @@
-# Publica o site no Firebase Hosting a cada envio para a branch main
-name: Publicar no Firebase Hosting
+# Publica o site, as regras do banco e as regras de fotos a cada envio para a branch main.
+# Autenticação sem chave: o GitHub prova a identidade do repositório ao Google (Workload Identity Federation).
+name: Publicar no Firebase
 on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 jobs:
-  build_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: google-github-actions/auth@v2
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LABEME_RESERVAS }}
-          channelId: live
-          projectId: labeme-reservas
+          workload_identity_provider: projects/37104463266/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deploy@labeme-reservas.iam.gserviceaccount.com
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Deploy
+        run: npx --yes firebase-tools@13.29.1 deploy --only hosting,firestore,storage --project labeme-reservas --non-interactive
