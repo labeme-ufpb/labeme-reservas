@@ -1,72 +1,79 @@
 rules_version = '2';
+// Regras de acesso do Sistema de Reservas LABEME (v11)
+// Perfis: user (alunos/professores), technician (equipe técnica), admin (coordenação)
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-    function userPath(uid) {
-      return /databases/$(database)/documents/users/$(uid);
-    }
-    function hasProfile() {
-      return signedIn() && exists(userPath(request.auth.uid));
-    }
-    function userRole() {
-      return hasProfile() ? get(userPath(request.auth.uid)).data.role : null;
-    }
-    function isAdmin() {
-      return userRole() == 'admin';
-    }
-    function isTechnician() {
-      return userRole() == 'admin' || userRole() == 'technician';
+
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(profilePath()); }
+    function me() { return get(profilePath()).data; }
+    function active() { return hasProfile() && me().get('active', true) != false; }
+    function role() { return me().get('role', 'user'); }
+    function isAdmin() { return active() && role() == 'admin'; }
+    function isStaff() { return active() && (role() == 'admin' || role() == 'technician'); }
+    function autoApproved() {
+      return me().get('category', '') in get(/databases/$(database)/documents/settings/global).data
+        .get('autoApproveCategories', ['mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico']);
     }
 
-    match /settings/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /resources/{resourceId} {
+    // Configurações: leitura pública (normas aparecem na tela de cadastro); só a coordenação altera
+    match /settings/{doc} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /users/{uid} {
-      allow read: if signedIn();
-      allow create: if signedIn() && (
-        isAdmin() ||
-        (request.auth.uid == uid && request.resource.data.role == 'user')
-      );
-      allow update: if signedIn() && (
-        isAdmin() ||
-        (request.auth.uid == uid && request.resource.data.role == resource.data.role)
-      );
+      allow read: if active() || (signedIn() && request.auth.uid == uid);
+      // Auto-cadastro: sempre como usuário comum, com o próprio e-mail
+      allow create: if (signedIn() && request.auth.uid == uid
+                        && request.resource.data.role == 'user'
+                        && request.resource.data.get('active', true) == true
+                        && request.resource.data.email.lower() == request.auth.token.email.lower())
+                    || isAdmin();
+      // Cada um edita os próprios dados pessoais; papel e ativação só pela coordenação
+      allow update: if isAdmin()
+                    || (request.auth.uid == uid && active()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['name', 'phone', 'advisor', 'institution', 'avatar', 'profileReminderShown',
+                                     'lastLoginAt', 'rulesAcceptedAt', 'category', 'incomplete']));
       allow delete: if isAdmin();
     }
 
-    match /reservations/{reservationId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if signedIn() && (
-        isTechnician() ||
-        resource.data.userId == request.auth.uid
-      );
+    match /resources/{id} {
+      allow read: if active();
+      allow create, delete: if isAdmin();
+      allow update: if isStaff();
+    }
+
+    match /reservations/{id} {
+      allow read: if active();
+      allow create: if isStaff()
+                    || (active() && request.resource.data.userId == request.auth.uid
+                        && (request.resource.data.status == 'pending'
+                            || (request.resource.data.status == 'approved' && autoApproved())));
+      allow update: if isStaff()
+                    || (active() && resource.data.userId == request.auth.uid
+                        && request.resource.data.userId == resource.data.userId
+                        && request.resource.data.resourceId == resource.data.resourceId
+                        && (request.resource.data.status == resource.data.status
+                            || request.resource.data.status in ['cancelled', 'awaiting_return']));
       allow delete: if isAdmin();
     }
 
-    match /stock/{stockId} {
-      allow read: if signedIn();
-      allow write: if isTechnician();
+    // Mensagens: só remetente e destinatário leem; o destinatário marca como lida
+    match /messages/{id} {
+      allow read: if active() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow create: if active() && request.resource.data.fromUserId == request.auth.uid;
+      allow update: if active() && resource.data.toUserId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+      allow delete: if isAdmin();
     }
 
-    match /messages/{messageId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.fromUserId == request.auth.uid;
-      allow update: if signedIn() && (
-        isAdmin() ||
-        resource.data.toUserId == request.auth.uid ||
-        resource.data.fromUserId == request.auth.uid
-      );
-      allow delete: if isAdmin();
+    // Estoque de materiais: todos consultam; equipe técnica e coordenação cadastram
+    match /stock/{id} {
+      allow read: if active();
+      allow write: if isStaff();
     }
   }
 }

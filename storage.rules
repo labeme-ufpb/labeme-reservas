@@ -1,16 +1,12 @@
 rules_version = '2';
+// Fotos enviadas pelo sistema (perfil, devolução, materiais, equipamentos)
 service firebase.storage {
   match /b/{bucket}/o {
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    match /uploads/{uid}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-                   && request.auth.uid == uid
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+    match /uploads/{all=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
     }
   }
 }
