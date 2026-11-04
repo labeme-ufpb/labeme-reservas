@@ -30,6 +30,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.2 (03/11/2026)
+Estoque: cadastro de tambor, armário ou prateleira como **local vazio** (botão "Local vazio" ou opção no cadastro), filtro "Locais vazios" e contagem. Ao guardar material num local vazio, a marcação sai sozinha.
+
+### v11.1 (03/11/2026)
+Coordenação: exclusão de contas de teste com as reservas; tabela de usuários sem rolagem lateral; erros do "Esqueci minha senha" visíveis.
+
 ### v11 (03/11/2026)
 Migração para Firebase: login real, dados compartilhados em tempo real entre todos os aparelhos, fotos no Storage, regras de acesso por perfil no servidor, recuperação de senha por e-mail, publicação automática pelo GitHub e instalação como aplicativo no celular.
 

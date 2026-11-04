@@ -63,9 +63,10 @@ const RESOURCE_MODES = { turno: 'Por turno', slot: 'Por horário', both: 'Turno 
 const STOCK_AVAILABILITY = {
   available: 'Disponível para uso',
   in_use: 'Em uso',
-  long_term: 'Estoque de longo prazo'
+  long_term: 'Estoque de longo prazo',
+  empty: 'Local vazio'
 };
-const STOCK_AVAIL_CLASS = { available: 'available', in_use: 'in_use_stock', long_term: 'long_term' };
+const STOCK_AVAIL_CLASS = { available: 'available', in_use: 'in_use_stock', long_term: 'long_term', empty: 'stock_empty' };
 const STOCK_UNITS = ['kg','g','L','mL','sacos','unidades','caixas','galões','m³','m','m²'];
 
 /* ============ ÍCONES (SVG inline, traço 1.75) ============ */

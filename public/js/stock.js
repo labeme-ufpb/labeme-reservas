@@ -1,7 +1,12 @@
 /* ============================================================
-   stock.js — Estoque de materiais (v4)
+   stock.js — Estoque de materiais (v11.2)
    Formato planilha: linhas/colunas, busca, filtros, ordenação por coluna
+   Locais vazios: tambor, armário ou prateleira cadastrado sem material
+   (empty: true, availability: 'empty')
    ============================================================ */
+
+function isEmptySpot(item) { return !!item && (item.empty === true || item.availability === 'empty'); }
+function stockLabel(item) { return isEmptySpot(item) ? 'Local vazio' : (item.name || '—'); }
 
 let stockSearch = '';
 let stockFilters = {
@@ -41,6 +46,7 @@ function renderStock() {
         <option value="available" ${stockFilters.availability==='available'?'selected':''}>Disponíveis</option>
         <option value="in_use" ${stockFilters.availability==='in_use'?'selected':''}>Em uso</option>
         <option value="long_term" ${stockFilters.availability==='long_term'?'selected':''}>Estoque longo prazo</option>
+        <option value="empty" ${stockFilters.availability==='empty'?'selected':''}>Locais vazios (${(window.db.stock || []).filter(isEmptySpot).length})</option>
       </select></label>
 
       <label class="fctl" for="stTypeF"><span>Tipo</span><select id="stTypeF" onchange="setStockType(this.value)">
@@ -62,12 +68,14 @@ function renderStock() {
 
       <div class="fctl-actions">
         ${isAdmin() ? `<button class="btn fctl-btn" onclick="exportStockCSV()">${icon('download',16)} CSV</button>` : ''}
-        ${canManage ? `<button class="btn dark fctl-btn" onclick="openStockModal()">${icon('plus',16)} Cadastrar material</button>` : ''}
+        ${canManage ? `<button class="btn fctl-btn" onclick="openStockModal(null, true)">${icon('cabinet',16)} Local vazio</button>
+        <button class="btn dark fctl-btn" onclick="openStockModal()">${icon('plus',16)} Cadastrar material</button>` : ''}
       </div>
     </div>
 
     <div style="margin-bottom:10px;font-size:13px;color:var(--ink-500);">
-      Mostrando <strong>${filtered.length}</strong> de ${(window.db.stock||[]).length} materiais
+      Mostrando <strong>${filtered.length}</strong> de ${(window.db.stock||[]).length} registros
+      ${(window.db.stock || []).some(isEmptySpot) ? ` · <strong>${(window.db.stock || []).filter(isEmptySpot).length}</strong> local(is) vazio(s)` : ''}
     </div>
 
     ${filtered.length === 0 ? `
@@ -119,10 +127,11 @@ function sortableHeader(col, label) {
 function renderStockCard(item) {
   const img = safeImg(item.photo);
   const qty = item.quantity ? `${item.quantity}${item.unit ? ' ' + item.unit : ''}` : '';
-  return `<button class="stock-card-m" onclick="showStockDetail('${item.id}')">
-    ${img ? `<img src="${img}" alt="" loading="lazy">` : `<span class="stock-card-ph">${icon('box', 22)}</span>`}
+  const empty = isEmptySpot(item);
+  return `<button class="stock-card-m ${empty ? 'is-empty' : ''}" onclick="showStockDetail('${item.id}')">
+    ${img ? `<img src="${img}" alt="" loading="lazy">` : `<span class="stock-card-ph">${icon(empty ? storageKind(item.location).icon : 'box', 22)}</span>`}
     <span class="stock-card-main">
-      <strong>${escapeHtml(item.name)}</strong>
+      <strong>${escapeHtml(stockLabel(item))}</strong>
       ${item.type ? `<span class="small muted">${escapeHtml(item.type)}</span>` : ''}
       ${storageChip(item.location)}
       ${item.professorName || item.advisee ? `<span class="small muted">${escapeHtml([item.professorName, item.advisee].filter(Boolean).join(' → '))}</span>` : ''}
@@ -141,9 +150,9 @@ function renderStockRow(item, canManage) {
   const qtyText = item.quantity ? `${item.quantity}${item.unit?' '+item.unit:''}` : '—';
   const dateText = item.addedAt ? new Date(item.addedAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
 
-  return `<tr style="cursor:pointer;" onclick="showStockDetail('${item.id}')">
+  return `<tr class="${isEmptySpot(item) ? 'stock-row-empty' : ''}" style="cursor:pointer;" onclick="showStockDetail('${item.id}')">
     <td data-label="">${photoHtml}</td>
-    <td data-label="Nome"><strong style="color:var(--ink-900);">${escapeHtml(item.name)}</strong></td>
+    <td data-label="Nome"><strong style="color:var(--ink-900);">${escapeHtml(stockLabel(item))}</strong></td>
     <td data-label="Tipo">${escapeHtml(item.type || '—')}</td>
     <td data-label="Localização">${item.location ? storageChip(item.location) : '—'}</td>
     <td data-label="Quantidade" class="nowrap" style="font-variant-numeric: tabular-nums;">${qtyText}</td>
@@ -175,7 +184,7 @@ function filteredStock() {
     if (term) {
       const haystack = [
         item.name, item.type, item.location,
-        item.professorName, item.advisee, item.notes
+        item.professorName, item.advisee, item.notes, isEmptySpot(item) ? 'local vazio' : ''
       ].filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(term)) return false;
     }
@@ -242,7 +251,7 @@ const onStockSearch = debounce(e => {
 function exportStockCSV() {
   if (!isAdmin()) return;
   const rows = [['Material','Tipo','Localização','Quantidade','Unidade','Professor responsável','Orientando','Disponibilidade','Observações','Cadastrado em']];
-  filteredStock().forEach(i => rows.push([i.name, i.type, i.location, i.quantity, i.unit, i.professorName, i.advisee, STOCK_AVAILABILITY[i.availability], i.notes, i.addedAt ? fmtDateTime(i.addedAt) : '']));
+  filteredStock().forEach(i => rows.push([stockLabel(i), i.type, i.location, i.quantity, i.unit, i.professorName, i.advisee, STOCK_AVAILABILITY[i.availability], i.notes, i.addedAt ? fmtDateTime(i.addedAt) : '']));
   downloadFile(`labeme-estoque-${todayISO()}.csv`, toCSV(rows), 'text/csv');
 }
 
@@ -255,7 +264,7 @@ function showStockDetail(id) {
   const html = `
     <div class="modal-head">
       <div>
-        <div class="modal-title">${escapeHtml(item.name)}</div>
+        <div class="modal-title">${escapeHtml(isEmptySpot(item) ? `${item.location} — vazio` : item.name)}</div>
         <div class="modal-sub">Cadastrado por ${escapeHtml(addedBy?.name || 'usuário removido')} em ${addedDate}</div>
       </div>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button>
@@ -273,14 +282,14 @@ function showStockDetail(id) {
       ${item.notes ? `<div class="field"><label>Observações</label><div style="padding:10px;background:var(--paper-warm);border-radius:6px;font-size:14px;">${escapeHtml(item.notes)}</div></div>` : ''}
     </div>
     <div class="modal-foot">
-      ${canManageStock() ? `<button class="btn" onclick="closeModal();openStockModal('${item.id}')">Editar</button>` : ''}
+      ${canManageStock() ? `<button class="btn" onclick="closeModal();openStockModal('${item.id}')">${isEmptySpot(item) ? 'Guardar material aqui' : 'Editar'}</button>` : ''}
       <button class="btn" onclick="closeModal()">Fechar</button>
     </div>
   `;
   openModal(html);
 }
 
-function openStockModal(id) {
+function openStockModal(id, asEmpty = false) {
   if (!canManageStock()) {
     return toast('Apenas técnicos e coordenação podem cadastrar materiais.', 'warn');
   }
@@ -313,12 +322,17 @@ function openStockModal(id) {
 
   const html = `
     <div class="modal-head">
-      <div><div class="modal-title">${id ? 'Editar' : 'Cadastrar'} material</div></div>
+      <div><div class="modal-title">${id ? 'Editar registro do estoque' : 'Cadastrar no estoque'}</div></div>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button>
     </div>
     <div class="modal-body">
+      <div class="seg stock-kind-seg" role="group" aria-label="O que está sendo cadastrado">
+        <button type="button" id="stKindMaterial" onclick="setStockKind(false)">${icon('box', 16)} Material</button>
+        <button type="button" id="stKindEmpty" onclick="setStockKind(true)">${icon('cabinet', 16)} Local vazio</button>
+      </div>
+      <div class="info-box" id="stEmptyInfo" hidden>Registre um tambor, armário ou prateleira que está <strong>vazio</strong> e disponível para guardar material. Quando algo for guardado nele, abra este registro e troque para <strong>Material</strong>.</div>
       <div class="field">
-        <label>Foto do material</label>
+        <label id="stPhotoLabelText">Foto do material</label>
         <label class="file-upload ${item.photo?'has-file':''}" id="stockPhotoLabel">
           <input type="file" id="stockPhotoInput" accept="image/*" onchange="onStockPhotoChange(event)">
           <div id="stockPhotoText">${item.photo ? '✓ Foto carregada — clique para trocar' : '📷 Clique para adicionar uma foto'}</div>
@@ -326,18 +340,18 @@ function openStockModal(id) {
         <img id="stockPhotoPreview" class="file-preview" src="${safeImg(item.photo)}" style="${item.photo?'':'display:none;'}" alt="Prévia">
       </div>
       <div class="field">
-        <label>Nome do material <span class="req">*</span></label>
-        <input type="text" id="stName" value="${escapeHtml(item.name)}" placeholder="Ex.: Cimento CP II-E-32">
+        <label for="stLocation">Localização <span class="req">*</span></label>
+        <input type="text" id="stLocation" list="stLocList" value="${escapeHtml(item.location||'')}" placeholder="Ex.: Tambor 03 / Prateleira A2 / Armário 1">
+        <datalist id="stLocList">${[...new Set((window.db.stock || []).map(s => s.location).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })).map(l => `<option value="${escapeHtml(l)}">`).join('')}</datalist>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Tipo de material</label>
-          <input type="text" id="stType" value="${escapeHtml(item.type||'')}" placeholder="Ex.: Aglomerante, agregado, aditivo...">
-        </div>
-        <div class="field">
-          <label>Localização <span class="req">*</span></label>
-          <input type="text" id="stLocation" value="${escapeHtml(item.location||'')}" placeholder="Ex.: Tambor 03 / Prateleira A2">
-        </div>
+      <div class="st-material-only">
+      <div class="field">
+        <label>Nome do material <span class="req">*</span></label>
+        <input type="text" id="stName" value="${escapeHtml(isEmptySpot(item) ? '' : item.name)}" placeholder="Ex.: Cimento CP II-E-32">
+      </div>
+      <div class="field">
+        <label>Tipo de material</label>
+        <input type="text" id="stType" value="${escapeHtml(item.type||'')}" placeholder="Ex.: Aglomerante, agregado, aditivo...">
       </div>
       <div class="field-row">
         <div class="field">
@@ -382,6 +396,7 @@ function openStockModal(id) {
           <option value="long_term" ${item.availability==='long_term'?'selected':''}>Estoque de longo prazo</option>
         </select>
       </div>
+      </div>
       <div class="field">
         <label>Observações</label>
         <textarea id="stNotes" rows="2" placeholder="Notas adicionais (validade, fornecedor, lote...)">${escapeHtml(item.notes||'')}</textarea>
@@ -394,10 +409,20 @@ function openStockModal(id) {
   `;
   openModal(html, true);
   window._stockPhotoData = item.photo || null;
+  setStockKind(id ? isEmptySpot(item) : asEmpty);
 
   if (item.advisee && !students.find(s => s.name === item.advisee)) {
     document.getElementById('stAdvisee').value = '__custom__';
   }
+}
+
+function setStockKind(empty) {
+  window._stockEmpty = !!empty;
+  document.getElementById('stKindMaterial')?.classList.toggle('active', !empty);
+  document.getElementById('stKindEmpty')?.classList.toggle('active', !!empty);
+  document.querySelectorAll('.st-material-only').forEach(el => { el.hidden = !!empty; });
+  const info = document.getElementById('stEmptyInfo'); if (info) info.hidden = !empty;
+  const lbl = document.getElementById('stPhotoLabelText'); if (lbl) lbl.textContent = empty ? 'Foto do local (opcional)' : 'Foto do material';
 }
 
 function onStockProfessorChange() {
@@ -426,13 +451,31 @@ function onStockPhotoChange(e) {
   }).catch(err => toast(err.message, 'error'));
 }
 
-function saveStock(id) {
+async function saveStock(id) {
   const u = currentUser();
   if (!u || !canManageStock()) return toast('Sem permissão.', 'error');
 
+  const empty = !!window._stockEmpty;
   const name = document.getElementById('stName').value.trim();
   const location = document.getElementById('stLocation').value.trim();
-  if (!name || !location) return toast('Nome e localização são obrigatórios.', 'error');
+  if (!location) return toast('Informe a localização.', 'error');
+  if (!empty && !name) return toast('Informe o nome do material.', 'error');
+  const sameLoc = s => s.id !== id && (s.location || '').trim().toLowerCase() === location.toLowerCase();
+
+  if (empty) {
+    const busy = (window.db.stock || []).filter(s => sameLoc(s) && !isEmptySpot(s));
+    if (busy.length && !(await askConfirm({ title: 'Local com material', body: `Ainda há ${busy.length} material(is) registrado(s) em <strong>${escapeHtml(location)}</strong>: ${busy.map(b => escapeHtml(b.name)).join(', ')}. Marcar mesmo assim como vazio? (Os registros desses materiais continuam; edite-os se foram retirados.)`, okLabel: 'Marcar como vazio' }))) return;
+    if ((window.db.stock || []).some(s => sameLoc(s) && isEmptySpot(s))) return toast(`${location} já está registrado como vazio.`, 'warn');
+    const data = { empty: true, name: '', type: '', location, professorId: '', professorName: '', advisee: '', availability: 'empty',
+      quantity: null, unit: '', notes: document.getElementById('stNotes').value.trim(), photo: window._stockPhotoData || null };
+    if (id) Object.assign(getStockItem(id), data);
+    else window.db.stock.push({ id: uid('stk'), ...data, addedBy: u.id, addedAt: Date.now() });
+    saveDB();
+    window._stockPhotoData = null;
+    closeModal();
+    toast(`${location} registrado como vazio.`, 'success');
+    return renderStock();
+  }
 
   const profSel = document.getElementById('stProfessor').value;
   let professorId = '', professorName = '';
@@ -454,6 +497,7 @@ function saveStock(id) {
   }
 
   const data = {
+    empty: false,
     name,
     type: document.getElementById('stType').value.trim(),
     location,
@@ -466,6 +510,10 @@ function saveStock(id) {
     notes: document.getElementById('stNotes').value.trim(),
     photo: window._stockPhotoData || null
   };
+
+  // Guardou material num local que estava marcado como vazio: a marcação sai sozinha
+  const freed = (window.db.stock || []).filter(s => sameLoc(s) && isEmptySpot(s));
+  if (freed.length) window.db.stock = window.db.stock.filter(s => !freed.includes(s));
 
   if (id) {
     Object.assign(getStockItem(id), data);
@@ -481,14 +529,14 @@ function saveStock(id) {
   saveDB();
   window._stockPhotoData = null;
   closeModal();
-  toast(id ? 'Material atualizado.' : 'Material cadastrado.', 'success');
+  toast((id ? 'Material atualizado.' : 'Material cadastrado.') + (freed.length ? ` ${location} deixou de constar como vazio.` : ''), 'success');
   renderStock();
 }
 
 async function deleteStock(id) {
   if (!canManageStock()) return;
   const item = getStockItem(id);
-  const ans = await askConfirm({ title: 'Excluir material', body: `Excluir <strong>${escapeHtml(item?.name || '')}</strong> do estoque?`, okLabel: 'Excluir', danger: true });
+  const ans = await askConfirm({ title: isEmptySpot(item) ? 'Excluir local vazio' : 'Excluir material', body: `Excluir <strong>${escapeHtml(isEmptySpot(item) ? item.location + ' (vazio)' : item?.name || '')}</strong> do estoque?`, okLabel: 'Excluir', danger: true });
   if (!ans) return;
   window.db.stock = window.db.stock.filter(s => s.id !== id);
   saveDB();

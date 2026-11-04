@@ -2510,3 +2510,12 @@ body.ready:not(.loading-data) .boot-splash { opacity: 0; pointer-events: none; }
 .users-table .col-name .small { word-break: break-all; }
 @media (max-width: 1500px) { .users-table .col-adv { display: none; } }
 @media (max-width: 720px) { .users-table .col-name { min-width: 0; } }
+
+/* ---------- v11.2 — Locais vazios no estoque ---------- */
+.pill.stock_empty { background: transparent; color: var(--ink-500, #667); border: 1px dashed currentColor; }
+.stock-row-empty td strong, .stock-card-m.is-empty strong { color: var(--ink-500, #667) !important; font-style: italic; font-weight: 600; }
+.stock-card-m.is-empty { border-style: dashed; }
+.stock-kind-seg { display: flex; margin-bottom: 14px; }
+.stock-kind-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.st-material-only[hidden] { display: none !important; }
+.stock-table .storage-chip { white-space: nowrap; }
