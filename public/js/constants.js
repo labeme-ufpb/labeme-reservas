@@ -255,6 +255,25 @@ function fileToDataURL(file, maxDim = 1024, quality = 0.8) {
   });
 }
 
+/* Nomes curtos: títulos (Prof., Dra.) contam como palavra; "de", "da", "dos"… não contam */
+const NAME_TITLES = /^(prof|profa|prof\.ª|dr|dra|me|ma|eng)\.?$/i;
+const NAME_LINKS = /^(de|da|do|das|dos|e|d')$/i;
+function shortName(name, n = 3) {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const out = []; let count = 0;
+  for (const w of words) {
+    if (count >= n) break;
+    out.push(w);
+    if (!NAME_LINKS.test(w)) count++;
+  }
+  while (out.length && NAME_LINKS.test(out[out.length - 1])) out.pop();
+  return out.join(' ');
+}
+function firstName(name) {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return words.find(w => !NAME_TITLES.test(w)) || words[0] || '';
+}
+
 function avatarInitials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/).filter(p => !/^(prof|profa|dr|dra)\.?$/i.test(p));

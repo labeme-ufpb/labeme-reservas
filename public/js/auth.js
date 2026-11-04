@@ -152,7 +152,7 @@ function refreshAuthUI() {
   const slot = document.getElementById('userAvatarSlot');
   if (slot) slot.innerHTML = u ? renderAvatar(u, 'small') : '';
   const label = document.getElementById('userNameLabel');
-  if (label) label.textContent = u ? u.name.split(' ')[0] : '';
+  if (label) label.textContent = u ? shortName(u.name, 3) : '';
   const prof = document.getElementById('nav-profile');
   if (prof && u) prof.title = `${u.name} — ${ROLE_LABELS[u.role] || ''}`;
   updateNavBadges();

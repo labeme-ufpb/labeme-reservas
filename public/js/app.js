@@ -119,7 +119,7 @@ async function onAuthChanged(fbUser) {
     if (!u.lastLoginAt || Date.now() - u.lastLoginAt > 36e5) { u.lastLoginAt = Date.now(); saveDB(); }
     resetCalendarPrefs(u);
     refreshAuthUI();
-    if (_bootDone) toast(isNew ? 'Cadastro realizado!' : `Bem-vindo(a), ${u.name.split(' ')[0]}!`, 'success');
+    if (_bootDone) toast(isNew ? 'Cadastro realizado!' : `Bem-vindo(a), ${firstName(u.name)}!`, 'success');
     const fromHash = (location.hash || '').slice(1);
     const pending = window._afterLogin; window._afterLogin = null;
     const target = pending || (!_bootDone && VIEWS.includes(fromHash) && fromHash !== 'auth' ? fromHash : null) || (u.incomplete ? 'profile' : homeViewFor(u));

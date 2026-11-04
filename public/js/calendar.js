@@ -213,7 +213,7 @@ function renderWeekGrid() {
       const iso = localISO(d);
       const events = eventsOn(iso).filter(r => rangesOverlap(reservationRange(r), slot));
       const ev = events.slice(0, 2).map(r => `<button class="week-event ${eventClassFor(r)}" onclick="event.stopPropagation();showResDetail('${r.id}')">
-          <strong>${escapeHtml(resourceName(r.resourceId))}${r.quantity > 1 ? ` ×${r.quantity}` : ''}</strong><small>${escapeHtml(userName(r.userId).split(' ')[0])}</small></button>`).join('');
+          <strong>${escapeHtml(resourceName(r.resourceId))}${r.quantity > 1 ? ` ×${r.quantity}` : ''}</strong><small>${escapeHtml(shortName(userName(r.userId), 2))}</small></button>`).join('');
       const more = events.length > 2 ? `<button class="week-more" onclick="event.stopPropagation();showDayDetail('${iso}', eventsOn('${iso}'))">+${events.length - 2}</button>` : '';
       body += `<div class="week-slot ${gap ? 'gap' : ''} ${iso < today ? 'past' : ''}" role="button" tabindex="0" aria-label="${fmtDateShort(iso)} ${slot.start} às ${slot.end}"
         onclick="onSlotClick('${iso}','${slot.start}','${slot.end}')" onkeydown="if(event.key==='Enter')onSlotClick('${iso}','${slot.start}','${slot.end}')">${ev}${more}</div>`;

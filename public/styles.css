@@ -2519,3 +2519,4 @@ body.ready:not(.loading-data) .boot-splash { opacity: 0; pointer-events: none; }
 .stock-kind-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .st-material-only[hidden] { display: none !important; }
 .stock-table .storage-chip { white-space: nowrap; }
+body.nav-compact .nav-user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

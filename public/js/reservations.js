@@ -313,7 +313,7 @@ function updateAvailability() {
     .filter(x => x.resourceId === f.r.id && x.date === f.date && ACTIVE_STATUSES.includes(x.status))
     .sort((a, b) => reservationRange(a).start.localeCompare(reservationRange(b).start));
   const dayHtml = dayList.length ? `<div class="day-occupancy"><div class="small muted">Já reservado neste dia:</div>${dayList.map(x =>
-    `<div class="occ-row"><span class="mono">${slotText(x)}</span><span>${escapeHtml(userName(x.userId).split(' ')[0])}${x.quantity > 1 ? ' · ' + x.quantity + ' un.' : ''}</span>${statusPill(x.status)}</div>`).join('')}</div>` : '';
+    `<div class="occ-row"><span class="mono">${slotText(x)}</span><span>${escapeHtml(shortName(userName(x.userId), 2))}${x.quantity > 1 ? ' · ' + x.quantity + ' un.' : ''}</span>${statusPill(x.status)}</div>`).join('')}</div>` : '';
   if (problem) { mount.innerHTML = `<div class="info-box danger">${icon('alert', 16)} ${escapeHtml(problem)}</div>${dayHtml}`; return; }
 
   const total = f.r.totalQuantity || 1;
@@ -364,7 +364,7 @@ function submitReservation() {
   if (!saveDB()) { window.db.reservations.pop(); return; }
   if (onBehalf) { notifyUser(u.id, `📅 ${me.name} registrou uma reserva para você: ${resLabel(res)}.`); saveDB(); }
   closeModal();
-  toast(onBehalf ? `Reserva registrada para ${u.name.split(' ')[0]}.` : auto ? 'Reserva confirmada!' : 'Solicitação enviada — aguardando aprovação.', 'success');
+  toast(onBehalf ? `Reserva registrada para ${firstName(u.name)}.` : auto ? 'Reserva confirmada!' : 'Solicitação enviada — aguardando aprovação.', 'success');
   refreshCurrentView();
 }
 
