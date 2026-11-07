@@ -395,7 +395,10 @@ async function migrateStoragePhotos() {
   let ok = 0, fail = 0;
   for (const j of jobs) {
     try {
-      const blob = await (await fetch(j.url)).blob();
+      // cache: 'reload' — a foto já exibida na tela fica no cache sem o cabeçalho CORS
+      const resp = await fetch(j.url, { cache: 'reload' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
       const ref = await storePhoto(await fileToDataURL(new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }), j.max, 0.8));
       // procura o objeto atual (a lista pode ter sido recarregada enquanto a foto era convertida)
       const cur = window.db[j.c].find(x => x.id === j.id);
