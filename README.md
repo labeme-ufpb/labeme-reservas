@@ -31,6 +31,9 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.8 (07/11/2026) — enquadramento das fotos dos equipamentos
+- Ao escolher a foto de um equipamento abre o ajuste de enquadramento (arrastar, aproximar com controle/roda/pinça, girar 90°, "foto inteira" com fundo branco). Resultado em JPG 1200×800 (3:2), o mesmo formato do cartão do catálogo, que agora tem proporção fixa 3:2. Botão "Ajustar enquadramento" para reenquadrar fotos já cadastradas. Código em `js/cropper.js`.
+
 ### v11.7 (07/11/2026) — manutenção e calibração, QR code e lista de espera
 - **Manutenção e calibração**: ficha de cada equipamento com problemas relatados, manutenções e calibrações (empresa, nº do certificado, próxima data). Qualquer usuário relata problema (com foto opcional); equipe técnica e coordenação registram, resolvem (quem relatou é avisado) e colocam/retiram o equipamento de manutenção. Periodicidade e próxima calibração no cadastro do recurso; alertas de calibração vencida/a vencer (30 dias). Nova aba Coordenação → Manutenção e Painel técnico → Manutenção. Coleção `maintenance`.
 - **QR code**: link direto `#equip/<id>` abre a ficha do equipamento (agenda, reservar, relatar problema); sem login, entra e depois abre a ficha. Etiquetas para impressão A4 (12 ou 4 por folha) em Recursos → Etiquetas QR, e QR individual na ficha. Biblioteca `js/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT).

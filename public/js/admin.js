@@ -96,7 +96,7 @@ function openResourceModal(id) {
     requiresTechnicianPresence: false, requiresReturnPhoto: false, description: '', active: true, status: 'available', photo: null, location: '', totalQuantity: 1, conditionNote: '' };
   const groups = [...new Set(window.db.resources.map(x => x.group).filter(Boolean))].sort();
   const locations = [...new Set(window.db.resources.map(x => x.location).filter(Boolean))].sort();
-  window._resourcePhotoData = r.photo || null;
+  window._resourcePhotoData = r.photo || null; window._resourcePhotoOriginal = null;
   const img = safeImg(r.photo);
   const chk = (idf, val, title, help) => `<label class="checkbox-field"><input type="checkbox" id="${idf}" ${val ? 'checked' : ''}><div class="cf-text"><strong>${title}</strong>${help}</div></label>`;
   openModal(`
@@ -106,7 +106,9 @@ function openResourceModal(id) {
       <div class="field"><span class="label">Foto</span>
         <label class="file-upload ${img ? 'has-file' : ''}" id="rPhotoLabel"><input type="file" accept="image/*" onchange="onResourcePhotoChange(event)">
           <div id="rPhotoText">${img ? 'Foto carregada — clique para trocar' : icon('camera') + ' Adicionar foto'}</div></label>
-        <img id="rPhotoPreview" class="file-preview" src="${img}" ${img ? '' : 'hidden'} alt="Prévia"></div>
+        <img id="rPhotoPreview" class="file-preview crop-preview" src="${img}" ${img ? '' : 'hidden'} alt="Prévia">
+        <button type="button" class="btn small" id="rPhotoAdjust" onclick="adjustCurrentResourcePhoto()" ${img ? '' : 'hidden'} style="margin-top:8px;">${icon('edit', 15)} Ajustar enquadramento</button>
+        <div class="field-help">Prefira foto na horizontal, com o equipamento centralizado. Depois de escolher, você ajusta o enquadramento (formato do cartão do catálogo).</div></div>
       <div class="field"><label for="rName">Nome <span class="req">*</span></label><input type="text" id="rName" value="${escapeHtml(r.name)}" placeholder="Ex.: Prensa hidráulica 100T"></div>
       <div class="field-row">
         <div class="field"><label for="rPatr">Patrimônio UFPB</label><input type="text" id="rPatr" value="${escapeHtml(r.patrimonio || '')}" placeholder="Ex.: 65-114.419"></div>
@@ -156,11 +158,10 @@ function openResourceModal(id) {
 }
 function onResourcePhotoChange(e) {
   const file = e.target.files[0]; if (!file) return;
-  fileToDataURL(file, 900, 0.78).then(d => {
-    window._resourcePhotoData = d;
-    const p = document.getElementById('rPhotoPreview'); p.src = d; p.hidden = false;
-    document.getElementById('rPhotoText').textContent = 'Foto carregada — clique para trocar';
-    document.getElementById('rPhotoLabel').classList.add('has-file');
+  e.target.value = '';   // permite escolher o mesmo arquivo de novo
+  fileToDataURL(file, 2000, 0.9).then(d => {
+    window._resourcePhotoOriginal = d;
+    cropResourcePhoto(d);
   }).catch(err => toast(err.message, 'error'));
 }
 function saveResource(id) {
@@ -191,7 +192,7 @@ function saveResource(id) {
   if (target) Object.assign(target, data);
   else window.db.resources.push({ id: uid('r'), ...data, createdAt: Date.now() });
   if (!saveDB()) return;
-  window._resourcePhotoData = null;
+  window._resourcePhotoData = null; window._resourcePhotoOriginal = null;
   closeModal();
   toast(cancelled ? `Salvo — ${cancelled} reserva(s) futura(s) cancelada(s) e usuários avisados.` : 'Recurso salvo.', cancelled ? 'warn' : 'success');
   refreshCurrentView();
