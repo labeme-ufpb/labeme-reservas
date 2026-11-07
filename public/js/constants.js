@@ -2,6 +2,22 @@
    constants.js — Constantes, ícones e helpers globais (v10)
    ============================================================ */
 
+/* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
+   Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
+   recarrega uma vez buscando a página atualizada. */
+const APP_BUILD = '11.6.1';
+(function checkBuild() {
+  try {
+    if (window.APP_BUILD === APP_BUILD) {
+      if (/[?&]v=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      return;
+    }
+    if (sessionStorage.getItem('labeme_build_reload') === APP_BUILD) return;   // evita repetir
+    sessionStorage.setItem('labeme_build_reload', APP_BUILD);
+  } catch (_) {}
+  location.replace(location.pathname + '?v=' + APP_BUILD + location.hash);
+})();
+
 const CATEGORY_LABELS = {
   graduacao: 'Graduação',
   graduacao_vinculo: 'Graduação com vínculo',
