@@ -15,7 +15,7 @@ function renderMessages() {
   const hasThread = activeConversationUserId ? 'has-thread' : '';
   document.body.classList.toggle('thread-open', !!activeConversationUserId);
 
-  mount.innerHTML = `
+  mount.innerHTML = `${renderAnnouncementsStrip()}
     <div class="messages-grid ${hasThread}">
       <div class="conv-list">
         <div class="conv-list-head">

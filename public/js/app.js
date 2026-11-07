@@ -49,6 +49,7 @@ function onExternalDataChange() {
     const typing = document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!typing) refreshCurrentView(); else updateNavBadges();
   } else updateNavBadges();
+  checkAnnouncements();   // aviso publicado enquanto o usuário está com o sistema aberto
 }
 
 /* ---------- Navegação móvel ---------- */
@@ -124,7 +125,11 @@ async function onAuthChanged(fbUser) {
     const pending = window._afterLogin; window._afterLogin = null;
     const target = pending || (!_bootDone && VIEWS.includes(fromHash) && fromHash !== 'auth' ? fromHash : null) || (u.incomplete ? 'profile' : homeViewFor(u));
     showView(target, { push: _bootDone });
-    if (!u.avatar && !u.profileReminderShown) setTimeout(showProfilePhotoReminder, 500);
+    _annShown.clear();
+    setTimeout(() => {
+      checkAnnouncements();   // avisos da coordenação têm prioridade
+      if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder();
+    }, 500);
   } catch (e) {
     console.error(e);
     toast('Não foi possível carregar os dados: ' + (e.message || e), 'error');

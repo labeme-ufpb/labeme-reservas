@@ -2520,3 +2520,32 @@ body.ready:not(.loading-data) .boot-splash { opacity: 0; pointer-events: none; }
 .st-material-only[hidden] { display: none !important; }
 .stock-table .storage-chip { white-space: nowrap; }
 body.nav-compact .nav-user-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ---------- v11.6 · Avisos gerais da coordenação ---------- */
+.modal-head.ann-head { justify-content: flex-start; align-items: center; background: var(--navy-pale); }
+.modal-head.ann-head.important { background: var(--danger-bg); }
+.ann-icon { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--labeme-navy); color: #fff; }
+.ann-head.important .ann-icon { background: var(--danger); }
+.ann-body { font-size: 15px; line-height: 1.6; color: var(--gray-900, #1d2430); overflow-wrap: anywhere; }
+.ann-meta { margin-top: 14px; font-size: 12.5px; color: var(--gray-500, #6b7280); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ann-strip { margin: 0 0 14px; border: 1px solid var(--line-200); border-left: 4px solid var(--labeme-navy);
+  border-radius: 10px; background: #fff; }
+.ann-strip > summary { cursor: pointer; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; list-style: none; }
+.ann-strip > summary::-webkit-details-marker { display: none; }
+.ann-strip > summary .count { background: var(--labeme-navy); color: #fff; border-radius: 99px; font-size: 12px; padding: 1px 8px; }
+.ann-item { padding: 12px 14px; border-top: 1px solid var(--line-100); }
+.ann-item.important { border-left: 3px solid var(--danger); background: #fff8f6; }
+.ann-item .ann-body { margin-top: 4px; font-size: 14px; }
+.ann-item .ann-meta { margin-top: 8px; }
+.ann-admin-row { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--line-100); }
+.ann-admin-row:last-child { border-bottom: 0; }
+.ann-admin-row.ended { opacity: .65; }
+.ann-admin-main { min-width: 0; display: grid; gap: 4px; }
+.ann-admin-row .row-actions { flex: 0 0 auto; align-items: center; }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 720px) {
+  body.thread-open .ann-strip { display: none; }
+  .ann-admin-row { flex-direction: column; }
+}

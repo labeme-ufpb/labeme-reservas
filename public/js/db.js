@@ -14,7 +14,7 @@
 
 const SESSION_KEY = 'labeme_session_v10';   // mantido por compatibilidade (sessão agora é do Firebase Auth)
 const SCHEMA_VERSION = 11;
-const COLLECTIONS = ['users', 'resources', 'reservations', 'stock', 'messages'];
+const COLLECTIONS = ['users', 'resources', 'reservations', 'stock', 'messages', 'announcements'];
 
 const DEFAULT_SETTINGS = {
   minAdvanceHours: 24,
@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS = {
 function emptyDB() {
   return {
     schema: SCHEMA_VERSION,
-    users: [], resources: [], reservations: [], messages: [], stock: [], passwordResets: [],
+    users: [], resources: [], reservations: [], messages: [], stock: [], announcements: [], passwordResets: [],
     settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
   };
 }
@@ -62,7 +62,7 @@ function normalizeDoc(c, d) {
 }
 function normalizeDB(d) {
   const out = Object.assign(emptyDB(), d || {});
-  ['users','resources','reservations','messages','stock','passwordResets'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  ['users','resources','reservations','messages','stock','announcements','passwordResets'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   out.settings = normalizeSettings(out.settings);
   COLLECTIONS.forEach(c => out[c].forEach(x => normalizeDoc(c, x)));
   out.schema = SCHEMA_VERSION;
@@ -124,7 +124,7 @@ function startSync(uid) {
     window.db.settings = normalizeSettings(snap.exists ? snap.data() : {});
     _sync.settingsKnown = stableStringify(window.db.settings);
   });
-  ['users', 'resources', 'reservations', 'stock'].forEach(c =>
+  ['users', 'resources', 'reservations', 'stock', 'announcements'].forEach(c =>
     watch(c, fb.fs.collection(c), snap => _applyCollection(c, snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })))));
   // Mensagens: cada pessoa só lê as próprias (enviadas e recebidas)
   const applyMsgs = () => _applyCollection('messages', [...new Map([..._sync.msg.from, ..._sync.msg.to]).values()]);
@@ -190,8 +190,17 @@ function sanitizeDoc(c, d) {
     d.totalQuantity = Math.max(1, parseInt(d.totalQuantity, 10) || 1);
     if (d.maxDays != null) d.maxDays = Math.max(1, Math.min(90, parseInt(d.maxDays, 10) || 7));
     d.name = String(d.name || '');
+  } else if (c === 'announcements') {
+    d.title = String(d.title || '').slice(0, 120);
+    d.body = String(d.body || '').slice(0, 3000);
+    if (!d.title || !d.body) return null;
+    d.level = d.level === 'important' ? 'important' : 'info';
+    d.active = d.active !== false;
+    d.createdAt = Number(d.createdAt) || 0;
+    if (d.expiresAt != null && !_ISO.test(d.expiresAt)) delete d.expiresAt;
   } else if (c === 'users') {
     d.name = String(d.name || '');
+    if ('seenAnnouncements' in d && !Array.isArray(d.seenAnnouncements)) d.seenAnnouncements = [];
     if ('email' in d || 'phone' in d) _sync.legacyContact.add(d.id);   // cadastro antigo: migrar para contacts
   }
   return d;

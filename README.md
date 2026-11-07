@@ -31,6 +31,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.6 (06/11/2026) — avisos gerais da coordenação
+- Nova aba **Coordenação → Avisos**: título, mensagem, tipo (informativo ou importante) e data final opcional.
+- Cada usuário vê o aviso em uma janela ao entrar no sistema (ou na hora, se já estiver conectado) até clicar em "Entendi"; o "visto" fica no perfil (`users.seenAnnouncements`) e vale em qualquer aparelho.
+- A coordenação acompanha quantos já viram, pode encerrar ou excluir. Avisos ativos ficam listados no topo de Mensagens.
+- Nova coleção `announcements` (leitura: usuários ativos; escrita: só coordenação).
+
 ### v11.5 (06/11/2026) — LGPD e plano gratuito
 - E-mail e telefone saem de `users` (lido por todos os logados) e vão para `contacts/{uid}` (só o dono e a equipe). Migração automática no primeiro acesso da coordenação.
 - Fotos deixam o Cloud Storage (que exige plano pago) e passam para a coleção `photos`, carregadas sob demanda e guardadas em cache no aparelho. Migração automática das fotos antigas.

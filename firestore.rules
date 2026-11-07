@@ -1,5 +1,5 @@
 rules_version = '2';
-// Regras de acesso do Sistema de Reservas LABEME (v11.5 — LGPD e plano gratuito)
+// Regras de acesso do Sistema de Reservas LABEME (v11.6 — avisos gerais)
 // Perfis: user (alunos/professores), technician (equipe técnica), admin (coordenação)
 // O navegador não é confiável: tudo o que importa é validado aqui.
 service cloud.firestore {
@@ -51,6 +51,7 @@ service cloud.firestore {
         && !('email' in d) && !('phone' in d)
         && optStr(d, 'advisor', 200) && optStr(d, 'institution', 200)
         && photoOk(d.get('avatar', null))
+        && d.get('seenAnnouncements', []) is list && d.get('seenAnnouncements', []).size() <= 300
         && d.get('role', 'user') in ['user', 'technician', 'admin']
         && d.get('category', '') in ['', 'graduacao', 'graduacao_vinculo', 'mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico', 'externo'];
     }
@@ -71,7 +72,8 @@ service cloud.firestore {
                         || (request.auth.uid == uid && active()
                             && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly(['name', 'advisor', 'institution', 'avatar', 'profileReminderShown',
-                                         'lastLoginAt', 'rulesAcceptedAt', 'incomplete', 'email', 'phone'])));
+                                         'lastLoginAt', 'rulesAcceptedAt', 'incomplete', 'seenAnnouncements',
+                                         'email', 'phone'])));
       allow delete: if isAdmin();
     }
 
@@ -197,6 +199,22 @@ service cloud.firestore {
       allow create: if isStaff() && validId(id) && stockOk(request.resource.data);
       allow update: if isStaff() && stockOk(request.resource.data);
       allow delete: if isStaff();
+    }
+
+    /* ---------- Avisos gerais: todos os usuários ativos leem; só a coordenação publica ---------- */
+    function announcementOk(d) {
+      return d.keys().hasOnly(['id', 'title', 'body', 'level', 'active', 'createdAt', 'createdBy', 'expiresAt', 'endedAt'])
+        && str(d.get('title', ''), 120) && d.get('title', '').size() > 0
+        && str(d.get('body', ''), 3000) && d.get('body', '').size() > 0
+        && d.get('level', 'info') in ['info', 'important']
+        && d.get('active', true) is bool
+        && (d.get('expiresAt', null) == null || isDate(d.get('expiresAt', null)))
+        && d.get('createdAt', 0) is int;
+    }
+    match /announcements/{id} {
+      allow read: if active();
+      allow create, update: if isAdmin() && validId(id) && announcementOk(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     /* ---------- Qualquer outra coleção: bloqueada ---------- */

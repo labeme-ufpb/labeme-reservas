@@ -11,7 +11,7 @@ let reportPeriod = 'semester';
 
 const ADMIN_TABS = [
   ['pending', 'Pendentes', 'clock'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'],
-  ['users', 'Usuários', 'users'], ['all-res', 'Reservas', 'list'], ['reports', 'Relatórios', 'chart'],
+  ['users', 'Usuários', 'users'], ['announcements', 'Avisos', 'megaphone'], ['all-res', 'Reservas', 'list'], ['reports', 'Relatórios', 'chart'],
   ['settings', 'Configurações', 'settings'], ['backup', 'Backup', 'database']
 ];
 
@@ -35,7 +35,7 @@ function renderAdmin() {
     <button class="stat-card accent-navy" onclick="setAdminTab('resources')"><div class="stat-label">Em manutenção</div><div class="stat-value">${maint}</div><div class="stat-foot">de ${window.db.resources.filter(r => r.active).length} recursos ativos</div></button>`;
 
   const content = document.getElementById('adminContent');
-  const fn = { pending: adminPending, returns: adminReturns, resources: adminResources, users: adminUsers, 'all-res': adminAllReservations,
+  const fn = { pending: adminPending, returns: adminReturns, resources: adminResources, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
     reports: adminReports, settings: adminSettings, backup: adminBackup }[adminTab] || adminPending;
   content.innerHTML = fn();
 }
