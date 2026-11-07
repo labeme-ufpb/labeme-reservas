@@ -131,7 +131,42 @@ function startSync(uid) {
   return Promise.all(firsts).then(() => { _sync.ready = true; });
 }
 
+/* Defesa extra no navegador: documentos com ID ou campos fora do formato esperado são ignorados
+   (as regras do servidor já recusam, mas dados antigos ou adulterados não chegam à tela). */
+const _HHMM = /^[0-2]\d:[0-5]\d$/, _ISO = /^\d{4}-[0-1]\d-[0-3]\d$/;
+function sanitizeDoc(c, d) {
+  if (!d || !isSafeId(d.id)) return null;
+  if (c === 'reservations') {
+    if (!isSafeId(d.userId) || !isSafeId(d.resourceId) || !_ISO.test(d.date || '')) return null;
+    if (!['turno', 'slot', 'days'].includes(d.mode)) return null;
+    d.slot = d.slot && typeof d.slot === 'object' ? d.slot : {};
+    if (d.mode === 'slot' && !(_HHMM.test(d.slot.start || '') && _HHMM.test(d.slot.end || ''))) return null;
+    if (d.mode === 'turno' && !['manha', 'tarde'].includes(d.slot.turno)) d.slot = { turno: 'manha' };
+    if (d.mode === 'days' && !_ISO.test(d.endDate || '')) return null;
+    d.quantity = Math.max(1, Math.min(1000, parseInt(d.quantity, 10) || 1));
+    if (!RES_STATUS[d.status]) return null;
+    if (!Array.isArray(d.history)) d.history = [];
+  } else if (c === 'messages') {
+    if (!isSafeId(d.fromUserId) || !isSafeId(d.toUserId)) return null;
+    d.body = String(d.body == null ? '' : d.body).slice(0, 4000);
+    d.sentAt = Number(d.sentAt) || 0;
+    if ('system' in d) d.system = d.system === true;
+  } else if (c === 'stock') {
+    if (d.quantity != null && !Number.isFinite(Number(d.quantity))) d.quantity = null;
+    ['name', 'type', 'unit', 'location', 'notes', 'professorName', 'advisee'].forEach(k => { if (d[k] != null) d[k] = String(d[k]); });
+  } else if (c === 'resources') {
+    d.totalQuantity = Math.max(1, parseInt(d.totalQuantity, 10) || 1);
+    if (d.maxDays != null) d.maxDays = Math.max(1, Math.min(90, parseInt(d.maxDays, 10) || 7));
+    d.name = String(d.name || '');
+  } else if (c === 'users') {
+    d.name = String(d.name || '');
+    d.email = String(d.email || '');
+  }
+  return d;
+}
+
 function _applyCollection(c, docs) {
+  docs = docs.map(d => sanitizeDoc(c, d)).filter(Boolean);
   docs.forEach(d => normalizeDoc(c, d));
   _sync.known[c] = new Map(docs.map(d => [d.id, stableStringify(d)]));
   // Documentos ainda enviando foto continuam visíveis com a versão local

@@ -1,9 +1,11 @@
 rules_version = '2';
-// Regras de acesso do Sistema de Reservas LABEME (v11)
+// Regras de acesso do Sistema de Reservas LABEME (v11.4 — revisão de segurança)
 // Perfis: user (alunos/professores), technician (equipe técnica), admin (coordenação)
+// O navegador não é confiável: tudo o que importa é validado aqui.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /* ---------- Quem está pedindo ---------- */
     function signedIn() { return request.auth != null; }
     function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function hasProfile() { return signedIn() && exists(profilePath()); }
@@ -12,69 +14,161 @@ service cloud.firestore {
     function role() { return me().get('role', 'user'); }
     function isAdmin() { return active() && role() == 'admin'; }
     function isStaff() { return active() && (role() == 'admin' || role() == 'technician'); }
+    function settings() { return get(/databases/$(database)/documents/settings/global).data; }
     function autoApproved() {
-      return me().get('category', '') in get(/databases/$(database)/documents/settings/global).data
+      return me().get('category', '') in settings()
         .get('autoApproveCategories', ['graduacao_vinculo', 'mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico']);
     }
 
-    // Configurações: leitura pública (normas aparecem na tela de cadastro); só a coordenação altera
+    /* ---------- Formatos ---------- */
+    // IDs só com letras, números, _ e - (impede código escondido em IDs)
+    function validId(v) { return v is string && v.matches('^[A-Za-z0-9_-]{1,64}$'); }
+    function isDate(v) { return v is string && v.matches('^[0-9]{4}-[0-1][0-9]-[0-3][0-9]$'); }
+    function isHHMM(v) { return v is string && v.matches('^[0-2][0-9]:[0-5][0-9]$'); }
+    function str(v, n) { return v is string && v.size() <= n; }
+    function optStr(d, k, n) { return !(k in d) || d[k] == null || str(d[k], n); }
+    function photoOk(v) {
+      return v == null
+        || (v is string && v.size() <= 1000
+            && (v.matches('^https://firebasestorage[.]googleapis[.]com/v0/b/[A-Za-z0-9._-]+/o/[^"<> ]+$')
+                || v.matches('^assets/[A-Za-z0-9_./-]+[.](jpg|jpeg|png|webp)$')));
+    }
+    function day(v) { return timestamp.date(int(v.split('-')[0]), int(v.split('-')[1]), int(v.split('-')[2])); }
+    function daysBetween(a, b) { return (day(b) - day(a)).seconds() / 86400; }
+    function resourceOf(d) { return get(/databases/$(database)/documents/resources/$(d.resourceId)).data; }
+
+    /* ---------- Configurações: leitura pública (normas na tela de cadastro); só a coordenação altera ---------- */
     match /settings/{doc} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() && doc == 'global';
     }
 
+    /* ---------- Usuários ---------- */
+    function userFieldsOk(d) {
+      return str(d.get('name', ''), 120) && d.get('name', '').size() > 0
+        && optStr(d, 'phone', 40) && optStr(d, 'advisor', 200) && optStr(d, 'institution', 200)
+        && photoOk(d.get('avatar', null))
+        && d.get('role', 'user') in ['user', 'technician', 'admin']
+        && d.get('category', '') in ['', 'graduacao', 'graduacao_vinculo', 'mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico', 'externo'];
+    }
     match /users/{uid} {
       allow read: if active() || (signedIn() && request.auth.uid == uid);
       // Auto-cadastro: sempre como usuário comum, com o próprio e-mail; "Graduação com vínculo" só pela coordenação
-      allow create: if (signedIn() && request.auth.uid == uid
-                        && request.resource.data.role == 'user'
-                        && request.resource.data.get('category', '') != 'graduacao_vinculo'
-                        && request.resource.data.get('active', true) == true
-                        && request.resource.data.email.lower() == request.auth.token.email.lower())
-                    || isAdmin();
+      allow create: if validId(uid) && userFieldsOk(request.resource.data)
+                    && ((signedIn() && request.auth.uid == uid
+                         && request.resource.data.role == 'user'
+                         && request.resource.data.get('category', '') != 'graduacao_vinculo'
+                         && request.resource.data.get('active', true) == true
+                         && !('createdBy' in request.resource.data)
+                         && request.resource.data.email.lower() == request.auth.token.email.lower())
+                        || isAdmin());
       // Cada um edita os próprios dados pessoais; papel, categoria e ativação só pela coordenação
-      allow update: if isAdmin()
-                    || (request.auth.uid == uid && active()
-                        && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['name', 'phone', 'advisor', 'institution', 'avatar', 'profileReminderShown',
-                                     'lastLoginAt', 'rulesAcceptedAt', 'incomplete']));
+      allow update: if userFieldsOk(request.resource.data)
+                    && (isAdmin()
+                        || (request.auth.uid == uid && active()
+                            && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['name', 'phone', 'advisor', 'institution', 'avatar', 'profileReminderShown',
+                                         'lastLoginAt', 'rulesAcceptedAt', 'incomplete'])));
       allow delete: if isAdmin();
     }
 
+    /* ---------- Equipamentos e espaços ---------- */
+    function resourceOk(d) {
+      return str(d.get('name', ''), 200) && d.get('name', '').size() > 0
+        && d.get('totalQuantity', 1) is int && d.get('totalQuantity', 1) >= 1 && d.get('totalQuantity', 1) <= 1000
+        && d.get('maxDays', 7) is int && d.get('maxDays', 7) >= 1 && d.get('maxDays', 7) <= 90
+        && photoOk(d.get('photo', null))
+        && optStr(d, 'description', 2000) && optStr(d, 'location', 200) && optStr(d, 'group', 100);
+    }
     match /resources/{id} {
       allow read: if active();
-      allow create, delete: if isAdmin();
-      allow update: if isStaff();
+      allow create: if isAdmin() && validId(id) && resourceOk(request.resource.data);
+      allow update: if isStaff() && resourceOk(request.resource.data);
+      allow delete: if isAdmin();
     }
 
+    /* ---------- Reservas ---------- */
+    function reservationOk(d) {
+      return validId(d.userId) && validId(d.resourceId)
+        && isDate(d.date)
+        && d.mode in ['turno', 'slot', 'days']
+        && (d.mode != 'turno' || d.slot.turno in ['manha', 'tarde'])
+        && (d.mode != 'slot' || (isHHMM(d.slot.start) && isHHMM(d.slot.end) && d.slot.start < d.slot.end))
+        && (d.mode != 'days' || (isDate(d.endDate) && d.endDate >= d.date))
+        && d.quantity is int && d.quantity >= 1 && d.quantity <= 1000
+        && d.status in ['pending', 'approved', 'denied', 'cancelled', 'in_use', 'awaiting_return', 'returned', 'completed']
+        && optStr(d, 'purpose', 2000) && optStr(d, 'project', 300) && optStr(d, 'purposeType', 40)
+        && optStr(d, 'denyReason', 1000) && optStr(d, 'cancelReason', 1000)
+        && optStr(d, 'returnNotes', 1000) && optStr(d, 'returnIssue', 1000)
+        && photoOk(d.get('returnPhoto', null))
+        && d.get('history', []) is list && d.get('history', []).size() <= 200;
+    }
+    // Pedido feito pelo próprio usuário: respeita as regras do equipamento
+    function ownRequestOk(d) {
+      let r = resourceOf(d);
+      return d.userId == request.auth.uid
+        && !('createdBy' in d)
+        && r.get('active', true) == true && r.get('status', 'available') != 'maintenance'
+        && d.quantity <= r.get('totalQuantity', 1)
+        && day(d.date) >= request.time - duration.value(1, 'd')
+        && (d.mode != 'days' || (r.get('allowMultiDay', false) == true && daysBetween(d.date, d.endDate) < r.get('maxDays', 7)))
+        && (d.status == 'pending' || (d.status == 'approved' && autoApproved()));
+    }
     match /reservations/{id} {
       allow read: if active();
-      allow create: if isStaff()
-                    || (active() && request.resource.data.userId == request.auth.uid
-                        && (request.resource.data.status == 'pending'
-                            || (request.resource.data.status == 'approved' && autoApproved())));
-      allow update: if isStaff()
-                    || (active() && resource.data.userId == request.auth.uid
-                        && request.resource.data.userId == resource.data.userId
-                        && request.resource.data.resourceId == resource.data.resourceId
-                        && (request.resource.data.status == resource.data.status
-                            || request.resource.data.status in ['cancelled', 'awaiting_return']));
+      allow create: if validId(id) && reservationOk(request.resource.data)
+                    && exists(/databases/$(database)/documents/resources/$(request.resource.data.resourceId))
+                    && (isStaff() || (active() && ownRequestOk(request.resource.data)));
+      // Equipe: qualquer mudança válida. Dono: só cancelar (pendente/aprovada) ou enviar a devolução com foto.
+      allow update: if reservationOk(request.resource.data)
+                    && (isStaff()
+                        || (active() && resource.data.userId == request.auth.uid
+                            && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['status', 'cancelReason', 'cancelledAt', 'cancelledBy', 'history',
+                                         'returnPhoto', 'returnNotes', 'returnedAt', 'returnIssue'])
+                            && ((resource.data.status in ['pending', 'approved'] && request.resource.data.status == 'cancelled')
+                                || (resource.data.status in ['approved', 'in_use'] && request.resource.data.status == 'awaiting_return'
+                                    && request.resource.data.get('returnPhoto', null) != null))));
       allow delete: if isAdmin();
     }
 
-    // Mensagens: só remetente e destinatário leem; o destinatário marca como lida
+    /* ---------- Mensagens: só remetente e destinatário leem; o destinatário marca como lida ---------- */
     match /messages/{id} {
       allow read: if active() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
-      allow create: if active() && request.resource.data.fromUserId == request.auth.uid;
+      allow create: if active() && validId(id)
+                    && request.resource.data.fromUserId == request.auth.uid
+                    && validId(request.resource.data.toUserId)
+                    && request.resource.data.toUserId != request.auth.uid
+                    && exists(/databases/$(database)/documents/users/$(request.resource.data.toUserId))
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 4000
+                    && request.resource.data.get('readAt', null) == null
+                    // aviso automático (system) só a equipe gera
+                    && (request.resource.data.get('system', false) == false || isStaff());
       allow update: if active() && resource.data.toUserId == request.auth.uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+                    && request.resource.data.readAt is int;
       allow delete: if isAdmin();
     }
 
-    // Estoque de materiais: todos consultam; equipe técnica e coordenação cadastram
+    /* ---------- Estoque de materiais: todos consultam; equipe técnica e coordenação cadastram ---------- */
+    function stockOk(d) {
+      return optStr(d, 'name', 200) && str(d.get('location', ''), 200) && d.get('location', '').size() > 0
+        && optStr(d, 'type', 100) && optStr(d, 'unit', 20) && optStr(d, 'notes', 2000)
+        && optStr(d, 'professorName', 120) && optStr(d, 'advisee', 120)
+        && (d.get('quantity', null) == null || d.get('quantity', null) is number)
+        && photoOk(d.get('photo', null));
+    }
     match /stock/{id} {
       allow read: if active();
-      allow write: if isStaff();
+      allow create: if isStaff() && validId(id) && stockOk(request.resource.data);
+      allow update: if isStaff() && stockOk(request.resource.data);
+      allow delete: if isStaff();
+    }
+
+    /* ---------- Qualquer outra coleção: bloqueada ---------- */
+    match /{other=**} {
+      allow read, write: if false;
     }
   }
 }

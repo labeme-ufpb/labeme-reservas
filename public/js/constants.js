@@ -208,7 +208,7 @@ function reservationHours(r, settings = window.db.settings) {
 }
 function slotText(r, settings = window.db.settings) {
   if (isMultiDay(r)) { const n = resDayCount(r); return n > 1 ? `${n} dias · até ${fmtDateShort(resEnd(r))}` : 'Dia inteiro'; }
-  return r.mode === 'slot' ? `${r.slot.start}–${r.slot.end}` : turnoText(r.slot.turno, settings);
+  return escapeHtml(r.mode === 'slot' ? `${r.slot.start}–${r.slot.end}` : turnoText(r.slot.turno, settings));
 }
 
 /* ============ SEGURANÇA DE SAÍDA ============ */
@@ -322,7 +322,9 @@ function downloadFile(filename, content, mime = 'text/plain') {
 function toCSV(rows) {
   // Separador ';' e BOM — abre direto no Excel em português
   const esc = v => {
-    const s = v === null || v === undefined ? '' : String(v);
+    let s = v === null || v === undefined ? '' : String(v);
+    // Impede que um texto começando com = + - @ vire fórmula ao abrir no Excel (injeção de fórmula)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return '﻿' + rows.map(r => r.map(esc).join(';')).join('\r\n');

@@ -30,6 +30,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.4 (06/11/2026) — revisão de segurança
+- Regras do Firestore validam IDs, formatos e tamanhos de todos os campos; reservas de usuários respeitam equipamento ativo, quantidade, data, vários dias e aprovação; o dono de uma reserva só pode cancelar ou enviar a devolução; avisos automáticos só pela equipe; coleções desconhecidas bloqueadas.
+- Storage aceita só JPG/PNG/WebP até 5 MB em caminhos válidos.
+- Navegador descarta documentos adulterados (`sanitizeDoc` em db.js), escapa horários e quantidades, protege CSV contra injeção de fórmulas.
+- Cabeçalhos de segurança (CSP, anti-iframe, nosniff); script externo do EmailJS removido (não estava configurado).
+
 ### v11.3 (06/11/2026)
 - **Reservas de vários dias (de… até…):** a coordenação libera por equipamento (Coordenação → Recursos → "Permitir reserva de vários dias" + máximo de dias). Reservas com `mode: "days"`, `date` (início) e `endDate` (fim); o equipamento fica ocupado o dia todo em cada dia do período.
 - **Categoria "Graduação com vínculo":** só a coordenação atribui (não aparece no cadastro); entra na aprovação automática. As regras do servidor impedem que o próprio aluno escolha essa categoria ou altere a sua categoria.

@@ -126,7 +126,7 @@ function sortableHeader(col, label) {
 /* Celular: cada material vira um cartão clicável (a tabela fica para o computador) */
 function renderStockCard(item) {
   const img = safeImg(item.photo);
-  const qty = item.quantity ? `${item.quantity}${item.unit ? ' ' + item.unit : ''}` : '';
+  const qty = item.quantity ? `${Number(item.quantity)}${item.unit ? ' ' + item.unit : ''}` : '';
   const empty = isEmptySpot(item);
   return `<button class="stock-card-m ${empty ? 'is-empty' : ''}" onclick="showStockDetail('${item.id}')">
     ${img ? `<img src="${img}" alt="" loading="lazy">` : `<span class="stock-card-ph">${icon(empty ? storageKind(item.location).icon : 'box', 22)}</span>`}
@@ -147,7 +147,7 @@ function renderStockRow(item, canManage) {
     : `<div style="width:42px;height:42px;background:var(--paper-warm);border:1px solid var(--line-200);border-radius:4px;display:grid;place-items:center;color:var(--line-300);font-size:16px;">⊟</div>`;
   const availClass = STOCK_AVAIL_CLASS[item.availability] || 'auto';
   const availLabel = STOCK_AVAILABILITY[item.availability] || item.availability;
-  const qtyText = item.quantity ? `${item.quantity}${item.unit?' '+item.unit:''}` : '—';
+  const qtyText = item.quantity ? escapeHtml(`${Number(item.quantity)}${item.unit ? ' ' + item.unit : ''}`) : '—';
   const dateText = item.addedAt ? new Date(item.addedAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
 
   return `<tr class="${isEmptySpot(item) ? 'stock-row-empty' : ''}" style="cursor:pointer;" onclick="showStockDetail('${item.id}')">
@@ -275,7 +275,7 @@ function showStockDetail(id) {
         <div><dt>Tipo</dt><dd>${escapeHtml(item.type || '—')}</dd></div>
         <div><dt>Localização</dt><dd>${item.location ? storageChip(item.location) : '—'}</dd></div>
         <div><dt>Disponibilidade</dt><dd><span class="pill ${STOCK_AVAIL_CLASS[item.availability]||'auto'}">${STOCK_AVAILABILITY[item.availability]||item.availability}</span></dd></div>
-        <div><dt>Quantidade</dt><dd>${item.quantity ? item.quantity + ' ' + (item.unit||'') : '—'}</dd></div>
+        <div><dt>Quantidade</dt><dd>${item.quantity ? escapeHtml(Number(item.quantity) + ' ' + (item.unit || '')) : '—'}</dd></div>
         <div><dt>Professor responsável</dt><dd>${escapeHtml(item.professorName || '—')}</dd></div>
         <div><dt>Orientando usando</dt><dd>${escapeHtml(item.advisee || '—')}</dd></div>
       </dl>
