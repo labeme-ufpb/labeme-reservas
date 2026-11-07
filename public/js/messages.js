@@ -192,17 +192,12 @@ function openNewConversationModal() {
   const u = currentUser();
   if (!u) return;
 
-  // Decide quem o usuário pode contactar
-  let availableUsers;
-  if (u.role === 'admin' || u.role === 'technician') {
-    // Pode falar com todos exceto consigo mesmo
-    availableUsers = window.db.users.filter(x => x.id !== u.id && x.active !== false);
-  } else {
-    // Usuário comum só pode falar com técnicos/admins
-    availableUsers = window.db.users.filter(x =>
-      x.id !== u.id && x.active !== false && (x.role === 'admin' || x.role === 'technician')
-    );
-  }
+  // Qualquer usuário cadastrado e ativo pode conversar com qualquer outro.
+  // Equipe técnica e coordenação aparecem primeiro na lista.
+  const staffFirst = x => (x.role === 'admin' ? 0 : x.role === 'technician' ? 1 : 2);
+  const availableUsers = window.db.users
+    .filter(x => x.id !== u.id && x.active !== false)
+    .sort((a, b) => staffFirst(a) - staffFirst(b) || a.name.localeCompare(b.name, 'pt-BR'));
 
   // Remove os que já têm conversa ativa
   const existingPartners = new Set(getConversationsList(u.id).map(c => c.otherId));
@@ -221,20 +216,29 @@ function openNewConversationModal() {
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button>
     </div>
     <div class="modal-body">
+      ${newUsers.length > 8 ? `<div class="input-icon" style="margin-bottom:10px;">${icon('search', 16)}<input type="search" id="newConvSearch" placeholder="Buscar pelo nome" oninput="filterNewConversation(this.value)" autofocus></div>` : ''}
+      <div id="newConvList">
       ${newUsers.map(usr => {
         const roleLabel = usr.role === 'admin' ? 'Coordenação'
                          : usr.role === 'technician' ? 'Técnico'
                          : CATEGORY_LABELS[usr.category] || '';
-        return `<button class="list-card" onclick="closeModal();openConversation('${usr.id}')">
+        // e-mail só aparece para a equipe; entre usuários, só nome e vínculo
+        const extra = isTechnician() ? ' · ' + escapeHtml(usr.email) : '';
+        return `<button class="list-card" data-name="${escapeHtml(normalizeTxt(usr.name))}" onclick="closeModal();openConversation('${usr.id}')">
           ${renderAvatar(usr)}
           <div class="list-card-main">
             <strong>${escapeHtml(usr.name)}</strong>
-            <span class="small muted">${escapeHtml(roleLabel)} · ${escapeHtml(usr.email)}</span>
+            <span class="small muted">${escapeHtml(roleLabel)}${extra}</span>
           </div>
         </button>`;
       }).join('')}
+      </div>
     </div>
   `;
   openModal(html);
+}
+function filterNewConversation(term) {
+  const t = normalizeTxt(term.trim());
+  document.querySelectorAll('#newConvList .list-card').forEach(b => { b.hidden = !!t && !b.dataset.name.includes(t); });
 }
 
