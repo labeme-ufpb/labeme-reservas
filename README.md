@@ -34,7 +34,7 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 ### v11.5 (06/11/2026) — LGPD e plano gratuito
 - E-mail e telefone saem de `users` (lido por todos os logados) e vão para `contacts/{uid}` (só o dono e a equipe). Migração automática no primeiro acesso da coordenação.
 - Fotos deixam o Cloud Storage (que exige plano pago) e passam para a coleção `photos`, carregadas sob demanda e guardadas em cache no aparelho. Migração automática das fotos antigas.
-- Projeto volta ao plano Spark (gratuito).
+- Projeto volta ao plano Spark (gratuito) em 06/11/2026; Cloud Storage não é mais usado.
 
 ### v11.4 (06/11/2026) — revisão de segurança
 - Regras do Firestore validam IDs, formatos e tamanhos de todos os campos; reservas de usuários respeitam equipamento ativo, quantidade, data, vários dias e aprovação; o dono de uma reserva só pode cancelar ou enviar a devolução; avisos automáticos só pela equipe; coleções desconhecidas bloqueadas.
