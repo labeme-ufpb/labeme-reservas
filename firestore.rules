@@ -1,5 +1,5 @@
 rules_version = '2';
-// Regras de acesso do Sistema de Reservas LABEME (v11.4 — revisão de segurança)
+// Regras de acesso do Sistema de Reservas LABEME (v11.5 — LGPD e plano gratuito)
 // Perfis: user (alunos/professores), technician (equipe técnica), admin (coordenação)
 // O navegador não é confiável: tudo o que importa é validado aqui.
 service cloud.firestore {
@@ -30,7 +30,8 @@ service cloud.firestore {
     function photoOk(v) {
       return v == null
         || (v is string && v.size() <= 1000
-            && (v.matches('^https://firebasestorage[.]googleapis[.]com/v0/b/[A-Za-z0-9._-]+/o/[^"<> ]+$')
+            && (v.matches('^photo:[A-Za-z0-9_-]{1,64}$')
+                || v.matches('^https://firebasestorage[.]googleapis[.]com/v0/b/[A-Za-z0-9._-]+/o/[^"<> ]+$')
                 || v.matches('^assets/[A-Za-z0-9_./-]+[.](jpg|jpeg|png|webp)$')));
     }
     function day(v) { return timestamp.date(int(v.split('-')[0]), int(v.split('-')[1]), int(v.split('-')[2])); }
@@ -44,9 +45,11 @@ service cloud.firestore {
     }
 
     /* ---------- Usuários ---------- */
+    // E-mail e telefone não ficam em users (todos os logados leem); ficam em contacts (LGPD)
     function userFieldsOk(d) {
       return str(d.get('name', ''), 120) && d.get('name', '').size() > 0
-        && optStr(d, 'phone', 40) && optStr(d, 'advisor', 200) && optStr(d, 'institution', 200)
+        && !('email' in d) && !('phone' in d)
+        && optStr(d, 'advisor', 200) && optStr(d, 'institution', 200)
         && photoOk(d.get('avatar', null))
         && d.get('role', 'user') in ['user', 'technician', 'admin']
         && d.get('category', '') in ['', 'graduacao', 'graduacao_vinculo', 'mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico', 'externo'];
@@ -59,16 +62,46 @@ service cloud.firestore {
                          && request.resource.data.role == 'user'
                          && request.resource.data.get('category', '') != 'graduacao_vinculo'
                          && request.resource.data.get('active', true) == true
-                         && !('createdBy' in request.resource.data)
-                         && request.resource.data.email.lower() == request.auth.token.email.lower())
+                         && !('createdBy' in request.resource.data))
                         || isAdmin());
       // Cada um edita os próprios dados pessoais; papel, categoria e ativação só pela coordenação
+      // (email/phone aparecem na lista só para poderem ser REMOVIDOS na migração para contacts)
       allow update: if userFieldsOk(request.resource.data)
                     && (isAdmin()
                         || (request.auth.uid == uid && active()
                             && request.resource.data.diff(resource.data).affectedKeys()
-                               .hasOnly(['name', 'phone', 'advisor', 'institution', 'avatar', 'profileReminderShown',
-                                         'lastLoginAt', 'rulesAcceptedAt', 'incomplete'])));
+                               .hasOnly(['name', 'advisor', 'institution', 'avatar', 'profileReminderShown',
+                                         'lastLoginAt', 'rulesAcceptedAt', 'incomplete', 'email', 'phone'])));
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- Contatos (LGPD): só o próprio usuário e a equipe leem ---------- */
+    match /contacts/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
+      allow create: if validId(uid)
+                    && request.resource.data.keys().hasOnly(['email', 'phone'])
+                    && str(request.resource.data.email, 200) && optStr(request.resource.data, 'phone', 40)
+                    && ((signedIn() && request.auth.uid == uid
+                         && request.resource.data.email.lower() == request.auth.token.email.lower())
+                        || isAdmin());
+      // O próprio usuário só troca o telefone; o e-mail (login) só a coordenação
+      allow update: if request.resource.data.keys().hasOnly(['email', 'phone'])
+                    && str(request.resource.data.email, 200) && optStr(request.resource.data, 'phone', 40)
+                    && (isAdmin()
+                        || (signedIn() && request.auth.uid == uid
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone'])));
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- Fotos (no lugar do Cloud Storage, para ficar no plano gratuito) ---------- */
+    match /photos/{pid} {
+      allow read: if active();
+      allow create: if active() && validId(pid)
+                    && request.resource.data.keys().hasOnly(['data', 'owner', 'createdAt'])
+                    && request.resource.data.owner == request.auth.uid
+                    && request.resource.data.data is string
+                    && request.resource.data.data.size() <= 700000
+                    && request.resource.data.data.split(',')[0] in ['data:image/jpeg;base64', 'data:image/png;base64', 'data:image/webp;base64'];
       allow delete: if isAdmin();
     }
 

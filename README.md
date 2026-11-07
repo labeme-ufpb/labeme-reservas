@@ -13,8 +13,9 @@ Agendamento de equipamentos, espaços e estoque de materiais do Laboratório de 
 | Páginas do sistema | `public/` → Firebase Hosting |
 | Login e senhas | Firebase Authentication (e-mail e senha) |
 | Dados (reservas, usuários, estoque, mensagens) | Cloud Firestore, região southamerica-east1 (São Paulo) |
-| Fotos | Cloud Storage (`uploads/`) |
-| Regras de acesso | `firestore.rules` e `storage.rules` |
+| Fotos | Coleção `photos` do Firestore (referência `photo:<id>`; cache no aparelho) |
+| Contatos (e-mail, telefone) | Coleção `contacts` — só o próprio usuário e a equipe leem (LGPD) |
+| Regras de acesso | `firestore.rules` |
 
 `public/js/db.js` mantém um espelho em memória (`window.db`) sincronizado em tempo real; `saveDB()` grava só os documentos que mudaram e envia fotos ao Storage.
 
@@ -29,6 +30,11 @@ Agendamento de equipamentos, espaços e estoque de materiais do Laboratório de 
 A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}` no Firestore. No primeiro acesso da coordenação, o inventário (91 equipamentos de `public/js/catalog.js`) e as configurações padrão são gravados automaticamente.
 
 ## Histórico
+
+### v11.5 (06/11/2026) — LGPD e plano gratuito
+- E-mail e telefone saem de `users` (lido por todos os logados) e vão para `contacts/{uid}` (só o dono e a equipe). Migração automática no primeiro acesso da coordenação.
+- Fotos deixam o Cloud Storage (que exige plano pago) e passam para a coleção `photos`, carregadas sob demanda e guardadas em cache no aparelho. Migração automática das fotos antigas.
+- Projeto volta ao plano Spark (gratuito).
 
 ### v11.4 (06/11/2026) — revisão de segurança
 - Regras do Firestore validam IDs, formatos e tamanhos de todos os campos; reservas de usuários respeitam equipamento ativo, quantidade, data, vários dias e aprovação; o dono de uma reserva só pode cancelar ou enviar a devolução; avisos automáticos só pela equipe; coleções desconhecidas bloqueadas.

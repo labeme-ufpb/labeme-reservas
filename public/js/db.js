@@ -3,8 +3,11 @@
    - Firestore como banco único (todos os usuários veem os mesmos dados)
    - window.db continua sendo o espelho em memória usado pelas telas;
      saveDB() descobre o que mudou e grava só esses documentos
-   - Fotos (data:image/…) vão para o Cloud Storage e o documento
-     guarda apenas o link
+   - Fotos (data:image/…) vão para a coleção photos (plano gratuito,
+     sem Cloud Storage); o documento guarda só a referência "photo:<id>"
+     e cada aparelho baixa a foto uma vez e guarda em cache
+   - E-mail e telefone ficam em contacts/{uid} (LGPD): só o próprio
+     usuário e a equipe leem; na tela continuam em window.db.users
    - Atualização em tempo real: mudanças feitas em outro aparelho
      chegam por onSnapshot e redesenham a tela atual
    ============================================================ */
@@ -73,7 +76,7 @@ function initFirebase() {
   const app = firebase.initializeApp(FIREBASE_CONFIG);
   const auth = firebase.auth();
   auth.languageCode = 'pt-BR';
-  fb = { app, auth, fs: firebase.firestore(), st: firebase.storage() };
+  fb = { app, auth, fs: firebase.firestore() };
   return fb;
 }
 
@@ -84,7 +87,9 @@ function stableStringify(v) {
     : val);
 }
 
-const _sync = { unsubs: [], known: {}, pending: {}, settingsKnown: null, ready: false, uid: null, msg: { to: new Map(), from: new Map() } };
+const _sync = { unsubs: [], known: {}, pending: {}, settingsKnown: null, ready: false, uid: null, msg: { to: new Map(), from: new Map() },
+  contacts: new Map(), legacyContact: new Set() };
+const CONTACT_FIELDS = ['email', 'phone'];
 const _refreshSoon = debounce(() => { if (typeof onExternalDataChange === 'function') onExternalDataChange(); }, 120);
 
 /* Configurações públicas (normas exibidas no cadastro, antes do login) */
@@ -101,6 +106,7 @@ function startSync(uid) {
   _sync.uid = uid; _sync.ready = false;
   COLLECTIONS.forEach(c => { _sync.known[c] = new Map(); _sync.pending[c] = new Map(); });
   _sync.msg = { to: new Map(), from: new Map() };
+  _sync.contacts = new Map(); _sync.legacyContact = new Set();
   const firsts = [];
   const watch = (key, ref, apply) => firsts.push(new Promise(resolve => {
     let first = true;
@@ -128,7 +134,33 @@ function startSync(uid) {
   watch('msg-from', fb.fs.collection('messages').where('fromUserId', '==', uid), snap => {
     _sync.msg.from = new Map(snap.docs.map(d => [d.id, Object.assign({}, d.data(), { id: d.id })])); applyMsgs();
   });
-  return Promise.all(firsts).then(() => { _sync.ready = true; });
+  // Contatos (e-mail/telefone): a equipe lê todos; cada usuário, só o próprio
+  return Promise.all(firsts).then(() => {
+    const me = getUser(uid);
+    const staff = me && me.active !== false && (me.role === 'admin' || me.role === 'technician');
+    return new Promise(resolve => {
+      let first = true;
+      const done = () => { if (first) { first = false; resolve(); } };
+      const onErr = err => { console.warn('Contatos:', err.code || err); done(); };
+      const ref = staff ? fb.fs.collection('contacts') : fb.fs.doc('contacts/' + uid);
+      _sync.unsubs.push(ref.onSnapshot(snap => {
+        const docs = staff ? snap.docs : (snap.exists ? [snap] : []);
+        _sync.contacts = new Map(docs.filter(d => isSafeId(d.id)).map(d => [d.id, { email: String(d.data().email || ''), phone: String(d.data().phone || '') }]));
+        _mergeContacts();
+        if (!first && _sync.ready) _refreshSoon();
+        done();
+      }, onErr));
+    });
+  }).then(() => { _sync.ready = true; });
+}
+
+/* Junta e-mail/telefone (de contacts) aos usuários da tela, sem gerar gravação */
+function _mergeContacts(list = window.db.users) {
+  list.forEach(u => {
+    const c = _sync.contacts.get(u.id);
+    if (c) { u.email = c.email; u.phone = c.phone; }
+    if (_sync.known.users && list === window.db.users) _sync.known.users.set(u.id, stableStringify(u));
+  });
 }
 
 /* Defesa extra no navegador: documentos com ID ou campos fora do formato esperado são ignorados
@@ -160,7 +192,7 @@ function sanitizeDoc(c, d) {
     d.name = String(d.name || '');
   } else if (c === 'users') {
     d.name = String(d.name || '');
-    d.email = String(d.email || '');
+    if ('email' in d || 'phone' in d) _sync.legacyContact.add(d.id);   // cadastro antigo: migrar para contacts
   }
   return d;
 }
@@ -168,6 +200,7 @@ function sanitizeDoc(c, d) {
 function _applyCollection(c, docs) {
   docs = docs.map(d => sanitizeDoc(c, d)).filter(Boolean);
   docs.forEach(d => normalizeDoc(c, d));
+  if (c === 'users') _mergeContacts(docs);
   _sync.known[c] = new Map(docs.map(d => [d.id, stableStringify(d)]));
   // Documentos ainda enviando foto continuam visíveis com a versão local
   _sync.pending[c].forEach((obj, id) => {
@@ -215,10 +248,11 @@ async function _writeDoc(c, obj) {
     let data = JSON.parse(JSON.stringify(obj));   // remove undefined e referências
     if (_hasDataUrl(data)) {
       _sync.pending[c].set(id, obj);
-      await _uploadImages(`uploads/${c}/${id}`, data, obj);
+      await _storePhotos(data, obj);
       _sync.pending[c].delete(id);
       _sync.known[c].set(id, stableStringify(obj));
     }
+    if (c === 'users') return await _writeUser(data);
     await fb.fs.collection(c).doc(id).set(data);
   } catch (e) {
     _sync.pending[c].delete(id);
@@ -231,23 +265,69 @@ function _hasDataUrl(v) {
   if (v && typeof v === 'object') return Object.values(v).some(_hasDataUrl);
   return false;
 }
-// Envia cada foto embutida para o Storage e troca, no dado e no objeto da tela, pelo link
-async function _uploadImages(folder, data, live) {
+// Grava cada foto embutida como documento da coleção photos e troca, no dado e na tela, por "photo:<id>"
+async function _storePhotos(data, live) {
   for (const k of Object.keys(data)) {
     const v = data[k];
     if (typeof v === 'string' && v.startsWith('data:image/')) {
-      const url = await uploadImage(folder, v);
-      data[k] = url;
-      if (live && live[k] === v) live[k] = url;
+      const ref = await storePhoto(v);
+      data[k] = ref;
+      if (live && live[k] === v) live[k] = ref;
     } else if (v && typeof v === 'object') {
-      await _uploadImages(folder, v, live && typeof live[k] === 'object' ? live[k] : null);
+      await _storePhotos(v, live && typeof live[k] === 'object' ? live[k] : null);
     }
   }
 }
-async function uploadImage(folder, dataUrl) {
-  const ref = fb.st.ref(`${folder}/${Date.now()}-${uid('f').slice(2)}.jpg`);
-  await ref.putString(dataUrl, 'data_url', { contentType: 'image/jpeg', cacheControl: 'public,max-age=31536000' });
-  return ref.getDownloadURL();
+async function storePhoto(dataUrl) {
+  const pid = uid('ph');
+  await fb.fs.collection('photos').doc(pid).set({ data: dataUrl, owner: fb.auth.currentUser.uid, createdAt: Date.now() });
+  photoCachePut(pid, dataUrl);
+  return 'photo:' + pid;
+}
+
+/* Usuário: dados gerais em users/{uid}; e-mail e telefone em contacts/{uid} */
+async function _writeUser(data) {
+  const id = data.id;
+  const contact = { email: String(data.email || '').toLowerCase(), phone: String(data.phone || '') };
+  CONTACT_FIELDS.forEach(k => delete data[k]);
+  await fb.fs.collection('users').doc(id).set(data);
+  const prev = _sync.contacts.get(id);
+  if (contact.email && (!prev || prev.email !== contact.email || prev.phone !== contact.phone)) {
+    // e-mail só muda pela coordenação; o próprio usuário altera apenas o telefone
+    const patch = prev && prev.email === contact.email && !isAdmin() ? { phone: contact.phone } : contact;
+    await fb.fs.collection('contacts').doc(id).set(patch, { merge: true });
+    _sync.contacts.set(id, contact);
+  }
+  _sync.legacyContact.delete(id);
+}
+
+/* ---------- Fotos sob demanda (com cache no aparelho) ---------- */
+const _photoMem = new Map(), _photoLoading = new Set();
+const PHOTO_PLACEHOLDER = 'assets/blank.gif';
+function photoCachePut(pid, data) {
+  _photoMem.set(pid, data);
+  try { localStorage.setItem('ph:' + pid, data); } catch (_) { /* cache cheio: fica só na memória */ }
+}
+function photoCacheGet(pid) {
+  if (_photoMem.has(pid)) return _photoMem.get(pid);
+  try { const v = localStorage.getItem('ph:' + pid); if (v) { _photoMem.set(pid, v); return v; } } catch (_) {}
+  return null;
+}
+// Chamado por safeImg: devolve a foto se já está no aparelho; senão um marcador e busca em segundo plano
+function photoSrc(pid) {
+  const hit = photoCacheGet(pid);
+  if (hit) return hit;
+  if (fb && fb.auth.currentUser && !_photoLoading.has(pid)) {
+    _photoLoading.add(pid);
+    fb.fs.collection('photos').doc(pid).get().then(snap => {
+      const d = snap.exists ? snap.data().data : null;
+      if (typeof d === 'string' && /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(d)) {
+        photoCachePut(pid, d);
+        document.querySelectorAll(`img[src="${PHOTO_PLACEHOLDER}?pid=${pid}"]`).forEach(img => { img.src = d; });
+      }
+    }).catch(e => console.warn('Foto', pid, e.code || e)).finally(() => _photoLoading.delete(pid));
+  }
+  return `${PHOTO_PLACEHOLDER}?pid=${pid}`;
 }
 
 let _lastWriteErr = 0;
@@ -263,9 +343,11 @@ function _reportWriteError(e) {
 // Grava um documento direto (cadastro do próprio perfil, contas criadas pela coordenação)
 async function writeDocNow(c, obj) {
   const data = JSON.parse(JSON.stringify(obj));
-  if (_hasDataUrl(data)) await _uploadImages(`uploads/${c}/${obj.id}`, data, obj);
-  await fb.fs.collection(c).doc(obj.id).set(data);
-  if (_sync.known[c]) _sync.known[c].set(obj.id, stableStringify(normalizeDoc(c, Object.assign({}, data))));
+  if (_hasDataUrl(data)) await _storePhotos(data, obj);
+  const full = Object.assign({}, data);
+  if (c === 'users') await _writeUser(data);
+  else await fb.fs.collection(c).doc(obj.id).set(data);
+  if (_sync.known[c]) _sync.known[c].set(obj.id, stableStringify(normalizeDoc(c, full)));
 }
 
 /* Carga inicial: inventário real e configurações completas (só a coordenação grava) */
@@ -288,7 +370,41 @@ async function ensureInitialData() {
     const list = Array.isArray(cur.autoApproveCategories) ? cur.autoApproveCategories.slice() : AUTO_APPROVE_CATEGORIES.slice();
     if (!list.includes('graduacao_vinculo')) list.unshift('graduacao_vinculo');
     await fb.fs.doc('settings/global').set({ autoApproveCategories: list, migrations: done.concat('graduacao_vinculo') }, { merge: true });
+    done.push('graduacao_vinculo');
   }
+  // Migração única (LGPD): e-mail e telefone saem de users e vão para contacts
+  if (_sync.legacyContact.size) {
+    let n = 0;
+    for (const id of [..._sync.legacyContact]) {
+      const u = getUser(id); if (!u) continue;
+      try { await _writeUser(JSON.parse(JSON.stringify(u))); n++; } catch (e) { console.error('Migração de contato', id, e); }
+    }
+    if (n) console.info(`Contatos migrados: ${n}`);
+  }
+  // Migração única (plano gratuito): fotos do Cloud Storage passam para a coleção photos
+  if (!done.includes('photos_firestore')) {
+    const moved = await migrateStoragePhotos();
+    if (moved >= 0) await fb.fs.doc('settings/global').set({ migrations: done.concat('photos_firestore') }, { merge: true });
+  }
+}
+async function migrateStoragePhotos() {
+  const isStorage = v => typeof v === 'string' && v.startsWith('https://firebasestorage.googleapis.com/');
+  const jobs = [];
+  [['users', 'avatar', 320], ['resources', 'photo', 900], ['stock', 'photo', 900], ['reservations', 'returnPhoto', 1024]].forEach(([c, field, max]) =>
+    window.db[c].forEach(o => isStorage(o[field]) && jobs.push({ c, id: o.id, field, url: o[field], max })));
+  let ok = 0, fail = 0;
+  for (const j of jobs) {
+    try {
+      const blob = await (await fetch(j.url)).blob();
+      const ref = await storePhoto(await fileToDataURL(new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }), j.max, 0.8));
+      // procura o objeto atual (a lista pode ter sido recarregada enquanto a foto era convertida)
+      const cur = window.db[j.c].find(x => x.id === j.id);
+      if (cur && cur[j.field] === j.url) { cur[j.field] = ref; saveDB(); }
+      ok++;
+    } catch (e) { fail++; console.error('Foto não migrada', j.id, e); }
+  }
+  if (ok) toast(`${ok} foto(s) transferida(s) para o banco de dados.`, 'success');
+  return fail ? -1 : ok;
 }
 
 /* Conta criada pela coordenação sem trocar a sessão atual (instância secundária do Firebase) */

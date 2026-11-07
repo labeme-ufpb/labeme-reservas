@@ -216,11 +216,13 @@ function escapeHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/[&<>"'`]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;' }[c]));
 }
-// Só aceita imagens embutidas (data:image/…), arquivos da pasta assets/ ou do Storage do Firebase
+// Só aceita imagens embutidas (data:image/…), arquivos da pasta assets/, fotos da coleção photos ou links antigos do Storage
 function safeImg(src) {
   if (!src || typeof src !== 'string') return '';
   if (/^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(src)) return src;
   if (/^assets\/[\w\-./]+\.(jpe?g|png|webp|gif)$/i.test(src)) return src;
+  // Foto guardada na coleção photos (carregada sob demanda e mantida em cache no aparelho)
+  if (/^photo:[A-Za-z0-9_-]{1,64}$/.test(src)) return typeof photoSrc === 'function' ? photoSrc(src.slice(6)) : '';
   // Fotos enviadas ao Cloud Storage do projeto (link com token de acesso)
   if (/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[\w.\-]+\/o\/[^"'<>\s]+$/.test(src)) return src;
   return '';

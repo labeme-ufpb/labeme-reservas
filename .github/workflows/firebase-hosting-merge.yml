@@ -1,4 +1,4 @@
-# Publica o site, as regras do banco e as regras de fotos a cada envio para a branch main.
+# Publica o site e as regras do banco a cada envio para a branch main.
 # Autenticação sem chave: o GitHub prova a identidade do repositório ao Google (Workload Identity Federation).
 name: Publicar no Firebase
 on:
@@ -24,4 +24,4 @@ jobs:
         with:
           node-version: 22
       - name: Deploy
-        run: npx --yes firebase-tools@15.34.1 deploy --only hosting,firestore,storage --project labeme-reservas --non-interactive
+        run: npx --yes firebase-tools@15.34.1 deploy --only hosting,firestore --project labeme-reservas --non-interactive
