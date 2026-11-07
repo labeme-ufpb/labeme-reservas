@@ -14,7 +14,7 @@ service cloud.firestore {
     function isStaff() { return active() && (role() == 'admin' || role() == 'technician'); }
     function autoApproved() {
       return me().get('category', '') in get(/databases/$(database)/documents/settings/global).data
-        .get('autoApproveCategories', ['mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico']);
+        .get('autoApproveCategories', ['graduacao_vinculo', 'mestrado', 'doutorado', 'prof_depto', 'prof_externo', 'tecnico']);
     }
 
     // Configurações: leitura pública (normas aparecem na tela de cadastro); só a coordenação altera
@@ -25,18 +25,19 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if active() || (signedIn() && request.auth.uid == uid);
-      // Auto-cadastro: sempre como usuário comum, com o próprio e-mail
+      // Auto-cadastro: sempre como usuário comum, com o próprio e-mail; "Graduação com vínculo" só pela coordenação
       allow create: if (signedIn() && request.auth.uid == uid
                         && request.resource.data.role == 'user'
+                        && request.resource.data.get('category', '') != 'graduacao_vinculo'
                         && request.resource.data.get('active', true) == true
                         && request.resource.data.email.lower() == request.auth.token.email.lower())
                     || isAdmin();
-      // Cada um edita os próprios dados pessoais; papel e ativação só pela coordenação
+      // Cada um edita os próprios dados pessoais; papel, categoria e ativação só pela coordenação
       allow update: if isAdmin()
                     || (request.auth.uid == uid && active()
                         && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['name', 'phone', 'advisor', 'institution', 'avatar', 'profileReminderShown',
-                                     'lastLoginAt', 'rulesAcceptedAt', 'category', 'incomplete']));
+                                     'lastLoginAt', 'rulesAcceptedAt', 'incomplete']));
       allow delete: if isAdmin();
     }
 

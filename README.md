@@ -30,6 +30,11 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.3 (06/11/2026)
+- **Reservas de vários dias (de… até…):** a coordenação libera por equipamento (Coordenação → Recursos → "Permitir reserva de vários dias" + máximo de dias). Reservas com `mode: "days"`, `date` (início) e `endDate` (fim); o equipamento fica ocupado o dia todo em cada dia do período.
+- **Categoria "Graduação com vínculo":** só a coordenação atribui (não aparece no cadastro); entra na aprovação automática. As regras do servidor impedem que o próprio aluno escolha essa categoria ou altere a sua categoria.
+- Menu do perfil com até 3 nomes.
+
 ### v11.2 (03/11/2026)
 Estoque: cadastro de tambor, armário ou prateleira como **local vazio** (botão "Local vazio" ou opção no cadastro), filtro "Locais vazios" e contagem. Ao guardar material num local vazio, a marcação sai sozinha.
 

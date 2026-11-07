@@ -247,6 +247,13 @@ async function ensureInitialData() {
   const cur = snap.exists ? snap.data() : {};
   const missing = Object.keys(DEFAULT_SETTINGS).filter(k => cur[k] === undefined);
   if (missing.length) await fb.fs.doc('settings/global').set(JSON.parse(JSON.stringify(window.db.settings)), { merge: true });
+  // Migração única: a nova categoria "Graduação com vínculo" entra na lista de aprovação automática
+  const done = Array.isArray(cur.migrations) ? cur.migrations : [];
+  if (!done.includes('graduacao_vinculo')) {
+    const list = Array.isArray(cur.autoApproveCategories) ? cur.autoApproveCategories.slice() : AUTO_APPROVE_CATEGORIES.slice();
+    if (!list.includes('graduacao_vinculo')) list.unshift('graduacao_vinculo');
+    await fb.fs.doc('settings/global').set({ autoApproveCategories: list, migrations: done.concat('graduacao_vinculo') }, { merge: true });
+  }
 }
 
 /* Conta criada pela coordenação sem trocar a sessão atual (instância secundária do Firebase) */
@@ -288,7 +295,7 @@ function runHousekeeping() {
   const today = todayISO();
   let changed = 0;
   window.db.reservations.forEach(r => {
-    if (r.date >= today) return;
+    if (resEnd(r) >= today) return;
     if (r.status === 'pending') {
       r.status = 'cancelled'; r.cancelReason = 'Expirada sem análise';
       logReservation(r, 'auto_expired'); changed++;
@@ -300,7 +307,7 @@ function runHousekeeping() {
   return changed;
 }
 function isOverdueReturn(r) {
-  return r.returnPhotoRequired && ['approved','in_use'].includes(r.status) && r.date < todayISO();
+  return r.returnPhotoRequired && ['approved','in_use'].includes(r.status) && resEnd(r) < todayISO();
 }
 
 /* ---------- Backup (cópia local de segurança) ---------- */

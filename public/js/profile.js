@@ -71,7 +71,7 @@ function renderProfile() {
               <input type="text" value="${escapeHtml(CATEGORY_LABELS[u.category] || '')}" disabled>
               <div class="field-help">Para alterar a categoria, entre em contato com a coordenação.</div>
             </div>
-            ${u.advisor !== undefined && ['graduacao','mestrado','doutorado'].includes(u.category) ? `
+            ${u.advisor !== undefined && STUDENT_CATEGORIES.includes(u.category) ? `
               <div class="field"><label>Orientador</label>
                 <input type="text" id="pfAdvisor" value="${escapeHtml(u.advisor||'')}">
               </div>

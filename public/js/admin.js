@@ -30,7 +30,7 @@ function renderAdmin() {
   const maint = window.db.resources.filter(r => r.active && r.status === 'maintenance').length;
   document.getElementById('statsRow').innerHTML = `
     <button class="stat-card accent-amber" onclick="setAdminTab('pending')"><div class="stat-label">Pendentes</div><div class="stat-value">${pending}</div><div class="stat-foot">aguardando aprovação</div></button>
-    <div class="stat-card accent-green"><div class="stat-label">Hoje</div><div class="stat-value">${R.filter(r => r.date === today && ['approved','in_use','awaiting_return'].includes(r.status)).length}</div><div class="stat-foot">${fmtDateShort(today)}</div></div>
+    <div class="stat-card accent-green"><div class="stat-label">Hoje</div><div class="stat-value">${R.filter(r => resCovers(r, today) && ['approved','in_use','awaiting_return'].includes(r.status)).length}</div><div class="stat-foot">${fmtDateShort(today)}</div></div>
     <button class="stat-card accent-steel" onclick="setAdminTab('returns')"><div class="stat-label">Devoluções</div><div class="stat-value">${returns}</div><div class="stat-foot">a conferir / atrasadas</div></button>
     <button class="stat-card accent-navy" onclick="setAdminTab('resources')"><div class="stat-label">Em manutenção</div><div class="stat-value">${maint}</div><div class="stat-foot">de ${window.db.resources.filter(r => r.active).length} recursos ativos</div></button>`;
 
@@ -131,6 +131,9 @@ function openResourceModal(id) {
       ${chk('rTechPresence', r.requiresTechnicianPresence, 'Presença de técnico obrigatória', 'Destaque ao usuário e no painel técnico.')}
       ${chk('rTechAssist', r.requiresTechnicianAssist, 'Acompanhamento técnico recomendado', 'Apenas informativo.')}
       ${chk('rReturnPhoto', r.requiresReturnPhoto, 'Devolução com foto obrigatória', 'Para itens portáteis: peneiras, ferramentas, moldes…')}
+      ${chk('rMultiDay', r.allowMultiDay, 'Permitir reserva de vários dias (de… até…)', 'Para equipamentos usados por dias seguidos: estufas, câmaras, tanques de cura…')}
+      <div class="field" id="rMaxDaysField" ${r.allowMultiDay ? '' : 'hidden'} style="margin-left:30px;max-width:260px;"><label for="rMaxDays">Máximo de dias por reserva</label>
+        <input type="number" id="rMaxDays" min="2" max="90" value="${r.maxDays || 7}"></div>
       <div class="field-row" style="margin-top:14px;">
         <div class="field"><label for="rStatus">Situação</label><select id="rStatus">
           <option value="available" ${r.status !== 'maintenance' ? 'selected' : ''}>Disponível</option>
@@ -142,6 +145,7 @@ function openResourceModal(id) {
       <div class="field"><label for="rCond">Observação de estado</label><input type="text" id="rCond" value="${escapeHtml(r.conditionNote || '')}" placeholder="Ex.: falta instalação; aguardando peça"></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="saveResource('${id || ''}')">Salvar</button></div>`, true);
+  document.getElementById('rMultiDay').addEventListener('change', e => { document.getElementById('rMaxDaysField').hidden = !e.target.checked; });
 }
 function onResourcePhotoChange(e) {
   const file = e.target.files[0]; if (!file) return;
@@ -163,6 +167,8 @@ function saveResource(id) {
     requiresTechnicianAssist: document.getElementById('rTechAssist').checked,
     requiresTechnicianPresence: document.getElementById('rTechPresence').checked,
     requiresReturnPhoto: document.getElementById('rReturnPhoto').checked,
+    allowMultiDay: document.getElementById('rMultiDay').checked,
+    maxDays: Math.min(90, Math.max(2, parseInt(v('rMaxDays'), 10) || 7)),
     photo: window._resourcePhotoData || null
   };
   if (!data.name) return toast('Informe o nome.', 'error');
@@ -184,7 +190,7 @@ function saveResource(id) {
 function cancelFutureReservationsOf(resourceId, reason) {
   let n = 0;
   window.db.reservations.forEach(x => {
-    if (x.resourceId === resourceId && x.date >= todayISO() && ['pending','approved'].includes(x.status)) {
+    if (x.resourceId === resourceId && resEnd(x) >= todayISO() && ['pending','approved'].includes(x.status)) {
       x.status = 'cancelled'; x.cancelReason = reason; x.cancelledAt = Date.now(); x.cancelledBy = currentUser()?.id;
       logReservation(x, 'maintenance_cancel', { reason });
       notifyUser(x.userId, `⚠️ Sua reserva foi cancelada: ${resLabel(x)}. Motivo: ${reason}. Desculpe o transtorno — procure a equipe técnica para remarcar.`);
@@ -255,7 +261,8 @@ function userFormFields(u = {}) {
     <div class="field-row">
       <div class="field"><label for="cuCategory">Categoria <span class="req">*</span></label>
         <select id="cuCategory" onchange="onCreateUserCategoryChange()"><option value="">Selecione…</option>
-        ${CATEGORY_ORDER.map(k => `<option value="${k}" ${u.category === k ? 'selected' : ''}>${CATEGORY_LABELS[k]}</option>`).join('')}</select></div>
+        ${CATEGORY_ORDER.map(k => `<option value="${k}" ${u.category === k ? 'selected' : ''}>${CATEGORY_LABELS[k]}</option>`).join('')}</select>
+        <div class="field-help">"Graduação com vínculo" é só atribuída pela coordenação, para alunos com autonomia no laboratório.</div></div>
       <div class="field"><label for="cuRole">Papel no sistema</label>
         <select id="cuRole" ${u.id && u.id === currentUser()?.id ? 'disabled' : ''}>
           ${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${(u.role || 'user') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
@@ -339,7 +346,7 @@ function saveUser(id) {
 async function toggleUserActive(id) {
   const u = getUser(id); if (!u) return;
   if (u.active !== false) {
-    const future = window.db.reservations.filter(r => r.userId === id && r.date >= todayISO() && ['pending','approved'].includes(r.status));
+    const future = window.db.reservations.filter(r => r.userId === id && resEnd(r) >= todayISO() && ['pending','approved'].includes(r.status));
     const ans = await askConfirm({ title: 'Desativar conta', body: `${escapeHtml(u.name)} não conseguirá mais entrar.${future.length ? ` ${future.length} reserva(s) futura(s) serão canceladas.` : ''} O histórico é preservado.`, okLabel: 'Desativar', danger: true });
     if (!ans) return;
     future.forEach(r => { r.status = 'cancelled'; r.cancelReason = 'Conta desativada'; logReservation(r, 'cancelled', { reason: 'Conta desativada' }); });
@@ -372,7 +379,7 @@ function filteredAllReservations() {
   const f = allResFilters; const t = normalizeTxt(f.q);
   return window.db.reservations.filter(r => {
     if (f.status !== 'all' && r.status !== f.status) return false;
-    if (f.from && r.date < f.from) return false;
+    if (f.from && resEnd(r) < f.from) return false;
     if (f.to && r.date > f.to) return false;
     if (t && !normalizeTxt([resourceName(r.resourceId), userName(r.userId), r.purpose, r.project].join(' ')).includes(t)) return false;
     return true;
@@ -394,10 +401,10 @@ function adminAllReservations() {
     </div>`, actions);
 }
 function exportReservationsCSV(list = filteredAllReservations()) {
-  const rows = [['Data','Início','Fim','Horas','Recurso','Grupo','Quantidade','Solicitante','E-mail','Categoria','Orientador','Atividade','Projeto','Descrição','Status','Criada em','Decidida por','Motivo recusa/cancelamento']];
+  const rows = [['Data','Data final','Início','Fim','Horas','Recurso','Grupo','Quantidade','Solicitante','E-mail','Categoria','Orientador','Atividade','Projeto','Descrição','Status','Criada em','Decidida por','Motivo recusa/cancelamento']];
   list.forEach(r => {
     const u = getUser(r.userId), res = getResource(r.resourceId), rg = reservationRange(r);
-    rows.push([r.date, rg.start, rg.end, reservationHours(r).toFixed(1).replace('.', ','), res?.name, res?.group, r.quantity, u?.name, u?.email, CATEGORY_LABELS[u?.category], u?.advisor,
+    rows.push([r.date, resEnd(r), isMultiDay(r) ? 'dia inteiro' : rg.start, isMultiDay(r) ? 'dia inteiro' : rg.end, reservationHours(r).toFixed(1).replace('.', ','), res?.name, res?.group, r.quantity, u?.name, u?.email, CATEGORY_LABELS[u?.category], u?.advisor,
       PURPOSE_TYPES[r.purposeType] || '', r.project, r.purpose, RES_STATUS[r.status], fmtDateTime(r.createdAt), r.decidedBy === 'auto' ? 'Automática' : (r.decidedBy ? userName(r.decidedBy) : ''), r.denyReason || r.cancelReason || '']);
   });
   downloadFile(`labeme-reservas-${todayISO()}.csv`, toCSV(rows), 'text/csv');
@@ -417,7 +424,7 @@ function barList(entries, unit = '') {
 }
 function adminReports() {
   const [from, to] = reportRange();
-  const inPeriod = window.db.reservations.filter(r => r.date >= from && r.date <= to);
+  const inPeriod = window.db.reservations.filter(r => resOverlapsDates(r, from, to));
   const used = inPeriod.filter(r => ['approved','in_use','awaiting_return','returned','completed'].includes(r.status));
   const decided = inPeriod.filter(r => r.decidedAt && r.decidedBy !== 'auto');
   const avgDecisionH = decided.length ? decided.reduce((s, r) => s + (r.decidedAt - r.createdAt), 0) / decided.length / 36e5 : 0;
@@ -440,7 +447,7 @@ function adminReports() {
     <div class="panel">
       <div class="panel-head"><div><div class="panel-title">Relatório de uso</div><div class="panel-sub">${from === '0000-01-01' ? 'Todo o período' : `${fmtDate(from)} a ${fmtDate(to)}`} · útil para relatórios institucionais, editais e prestação de contas.</div></div>
         <div class="flex-row wrap"><div class="seg small">${periods.map(([k, l]) => `<button class="${reportPeriod === k ? 'active' : ''}" onclick="reportPeriod='${k}';renderAdmin()">${l}</button>`).join('')}</div>
-        <button class="btn" onclick="exportReservationsCSV(window.db.reservations.filter(r=>r.date>='${from}'&&r.date<='${to}'))">${icon('download', 16)} CSV</button></div></div>
+        <button class="btn" onclick="exportReservationsCSV(window.db.reservations.filter(r=>resOverlapsDates(r,'${from}','${to}')))">${icon('download', 16)} CSV</button></div></div>
       <div class="panel-body">
         <div class="kpi-grid">
           <div class="kpi"><span class="kpi-n">${used.length}</span><span class="kpi-l">usos confirmados</span></div>

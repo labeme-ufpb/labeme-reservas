@@ -69,7 +69,7 @@ function rangesOverlap(a, b) { return a.start < b.end && b.start < a.end; }
 
 function reservedQuantityIn(resourceId, date, range, ignoreId = null) {
   return window.db.reservations
-    .filter(x => x.id !== ignoreId && x.resourceId === resourceId && x.date === date && ACTIVE_STATUSES.includes(x.status))
+    .filter(x => x.id !== ignoreId && x.resourceId === resourceId && resCovers(x, date) && ACTIVE_STATUSES.includes(x.status))
     .filter(x => rangesOverlap(reservationRange(x), range))
     .reduce((s, x) => s + (x.quantity || 1), 0);
 }
@@ -99,6 +99,24 @@ function rangeProblem(date, range) {
   }
   return null;
 }
+// Reserva de vários dias: valida início, fim, limite de dias do equipamento e antecedência
+function daysProblem(start, end, res) {
+  const s = window.db.settings;
+  const p1 = dateProblem(start); if (p1) return p1;
+  if (!end) return 'Escolha a data final.';
+  if (end < start) return 'A data final deve ser igual ou posterior à data inicial.';
+  const p2 = dateProblem(end); if (p2) return 'Data final: ' + p2.charAt(0).toLowerCase() + p2.slice(1);
+  const n = daySpan(start, end).length, max = res?.maxDays || 7;
+  if (n > max) return `Este equipamento pode ser reservado por no máximo ${max} dias seguidos.`;
+  const startTs = new Date(`${start}T${s.turnoManha.start}:00`).getTime();
+  if ((startTs - Date.now()) / 36e5 < (s.minAdvanceHours || 0) && !isTechnician()) return `É preciso reservar com pelo menos ${s.minAdvanceHours} h de antecedência.`;
+  return null;
+}
+// Maior quantidade já reservada em qualquer dia do período
+function reservedQuantityInSpan(resourceId, from, to, range, ignoreId = null) {
+  return Math.max(0, ...daySpan(from, to).map(d => reservedQuantityIn(resourceId, d, range, ignoreId)));
+}
+
 function firstBookableDate() {
   let d = todayISO();
   for (let i = 0; i < 60; i++) {
@@ -110,7 +128,7 @@ function firstBookableDate() {
   return todayISO();
 }
 function activeFutureCount(userId) {
-  return window.db.reservations.filter(r => r.userId === userId && ['pending','approved'].includes(r.status) && r.date >= todayISO()).length;
+  return window.db.reservations.filter(r => r.userId === userId && ['pending','approved'].includes(r.status) && resEnd(r) >= todayISO()).length;
 }
 
 /* ---------------- Nova reserva ---------------- */
@@ -170,8 +188,8 @@ function openReserveModal(prefill = {}) {
       </div>
       <div id="resourceInfo"></div>
       <div class="field">
-        <label for="resDate">Data <span class="req">*</span></label>
-        <input type="date" id="resDate" min="${todayISO()}" max="${addDaysISO(todayISO(), s.maxAdvanceDays || 30)}" value="${date}" onchange="updateAvailability()">
+        <label for="resDate" id="resDateLabel">Data <span class="req">*</span></label>
+        <input type="date" id="resDate" min="${todayISO()}" max="${addDaysISO(todayISO(), s.maxAdvanceDays || 30)}" value="${date}" onchange="if(document.getElementById('resEndDate')&&document.querySelector('input[name=rdays]:checked')?.value==='days')renderDaysFields();else updateAvailability();">
         <div class="field-help">Antecedência mínima de ${s.minAdvanceHours} h · até ${s.maxAdvanceDays} dias à frente${s.allowWeekends ? '' : ' · dias úteis'}</div>
       </div>
       <div id="resModeFields"></div>
@@ -211,7 +229,7 @@ function onReserveForChange() {
   const pt = document.getElementById('resPurposeType'); if (pt && !pt.dataset.touched) pt.value = defaultPurposeType(t);
 }
 function defaultPurposeType(u) {
-  return { graduacao: 'pesquisa_tcc', mestrado: 'pesquisa_pos', doutorado: 'pesquisa_pos', prof_depto: 'pesquisa_docente' }[u.category] || '';
+  return { graduacao: 'pesquisa_tcc', graduacao_vinculo: 'pesquisa_ic', mestrado: 'pesquisa_pos', doutorado: 'pesquisa_pos', prof_depto: 'pesquisa_docente' }[u.category] || '';
 }
 function filterResourceSelect(term) {
   const sel = document.getElementById('resResource');
@@ -260,9 +278,10 @@ function updateReserveModal() {
         <option value="manha">Manhã (${s.turnoManha.start}–${s.turnoManha.end})</option>
         <option value="tarde" ${p.startTime && p.startTime >= s.turnoTarde.start ? 'selected' : ''}>Tarde (${s.turnoTarde.start}–${s.turnoTarde.end})</option>
       </select></div>`;
+  let single;
   if (r.mode === 'both') {
     const startSlot = !!p.startTime;
-    modeFields.innerHTML = `
+    single = `
       <div class="field"><span class="label">Modo de reserva</span>
         <div class="seg">
           <label><input type="radio" name="rmode" value="turno" ${startSlot ? '' : 'checked'} onchange="renderTimeFields()"><span>Turno inteiro</span></label>
@@ -271,7 +290,27 @@ function updateReserveModal() {
       <div id="timeFieldsMount">${startSlot ? slotFields : turnoFields}</div>`;
     window._timeTpl = { slotFields, turnoFields };
   } else {
-    modeFields.innerHTML = r.mode === 'slot' ? slotFields : turnoFields;
+    single = r.mode === 'slot' ? slotFields : turnoFields;
+  }
+  if (r.allowMultiDay) {
+    // Equipamento liberado pela coordenação para reservas de vários dias (de… até…)
+    const start = document.getElementById('resDate').value || todayISO();
+    const max = r.maxDays || 7;
+    modeFields.innerHTML = `
+      <div class="field"><span class="label">Período</span>
+        <div class="seg">
+          <label><input type="radio" name="rdays" value="single" checked onchange="renderDaysFields()"><span>Um dia</span></label>
+          <label><input type="radio" name="rdays" value="days" onchange="renderDaysFields()"><span>Vários dias</span></label>
+        </div>
+        <div class="field-help">Este equipamento pode ser reservado por até ${max} dias seguidos.</div></div>
+      <div id="singleFields">${single}</div>
+      <div id="daysFields" hidden>
+        <div class="field"><label for="resEndDate">Até <span class="req">*</span></label>
+          <input type="date" id="resEndDate" min="${start}" value="${addDaysISO(start, Math.min(max, 5) - 1)}" onchange="updateAvailability()">
+          <div class="field-help">O equipamento fica reservado o dia todo, do primeiro ao último dia.</div></div>
+      </div>`;
+  } else {
+    modeFields.innerHTML = single;
   }
   qtyField.innerHTML = (r.totalQuantity || 1) > 1 ? `
     <div class="field"><label for="resQuantity">Quantidade <span class="req">*</span></label>
@@ -283,6 +322,15 @@ function addMinutes(hhmm, mins) {
   const t = hhmmToMin(hhmm) + mins;
   return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
 }
+function renderDaysFields() {
+  const days = document.querySelector('input[name=rdays]:checked')?.value === 'days';
+  document.getElementById('singleFields').hidden = days;
+  document.getElementById('daysFields').hidden = !days;
+  const lbl = document.getElementById('resDateLabel'); if (lbl) lbl.innerHTML = (days ? 'De' : 'Data') + ' <span class="req">*</span>';
+  const start = document.getElementById('resDate').value, end = document.getElementById('resEndDate');
+  if (days && end) { end.min = start; if (!end.value || end.value < start) end.value = start; }
+  updateAvailability();
+}
 function renderTimeFields() {
   const mode = document.querySelector('input[name=rmode]:checked')?.value;
   document.getElementById('timeFieldsMount').innerHTML = mode === 'slot' ? window._timeTpl.slotFields : window._timeTpl.turnoFields;
@@ -293,6 +341,12 @@ function readReservationForm() {
   const r = getResource(document.getElementById('resResource')?.value);
   if (!r) return null;
   const date = document.getElementById('resDate').value;
+  const quantity0 = parseInt(document.getElementById('resQuantity')?.value || '1', 10);
+  if (r.allowMultiDay && document.querySelector('input[name=rdays]:checked')?.value === 'days') {
+    const endDate = document.getElementById('resEndDate')?.value || '';
+    const endEl = document.getElementById('resEndDate'); if (endEl) endEl.min = date;
+    return { r, date, endDate, mode: 'days', slot: {}, quantity: quantity0, range: { start: '00:00', end: '23:59' } };
+  }
   const radio = document.querySelector('input[name=rmode]:checked')?.value;
   let mode, slot;
   if (r.mode === 'slot' || (r.mode === 'both' && radio === 'slot')) {
@@ -301,27 +355,29 @@ function readReservationForm() {
     mode = 'turno'; slot = { turno: document.getElementById('resTurno')?.value || 'manha' };
   }
   const quantity = parseInt(document.getElementById('resQuantity')?.value || '1', 10);
-  return { r, date, mode, slot, quantity, range: mode === 'slot' ? { start: slot.start, end: slot.end } : turnoRange(slot.turno) };
+  return { r, date, endDate: date, mode, slot, quantity, range: mode === 'slot' ? { start: slot.start, end: slot.end } : turnoRange(slot.turno) };
 }
 
 function updateAvailability() {
   const mount = document.getElementById('resAvailability');
   const f = readReservationForm();
   if (!mount || !f) return;
-  const problem = dateProblem(f.date) || rangeProblem(f.date, f.range);
+  const multi = f.mode === 'days';
+  const problem = multi ? daysProblem(f.date, f.endDate, f.r) : (dateProblem(f.date) || rangeProblem(f.date, f.range));
   const dayList = window.db.reservations
-    .filter(x => x.resourceId === f.r.id && x.date === f.date && ACTIVE_STATUSES.includes(x.status))
-    .sort((a, b) => reservationRange(a).start.localeCompare(reservationRange(b).start));
-  const dayHtml = dayList.length ? `<div class="day-occupancy"><div class="small muted">Já reservado neste dia:</div>${dayList.map(x =>
-    `<div class="occ-row"><span class="mono">${slotText(x)}</span><span>${escapeHtml(shortName(userName(x.userId), 2))}${x.quantity > 1 ? ' · ' + x.quantity + ' un.' : ''}</span>${statusPill(x.status)}</div>`).join('')}</div>` : '';
+    .filter(x => x.resourceId === f.r.id && ACTIVE_STATUSES.includes(x.status) && (multi ? f.endDate && resOverlapsDates(x, f.date, f.endDate) : resCovers(x, f.date)))
+    .sort((a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start));
+  const dayHtml = dayList.length ? `<div class="day-occupancy"><div class="small muted">${multi ? 'Já reservado no período:' : 'Já reservado neste dia:'}</div>${dayList.map(x =>
+    `<div class="occ-row"><span class="mono">${multi || isMultiDay(x) ? fmtDateShort(x.date) + ' · ' : ''}${slotText(x)}</span><span>${escapeHtml(shortName(userName(x.userId), 2))}${x.quantity > 1 ? ' · ' + x.quantity + ' un.' : ''}</span>${statusPill(x.status)}</div>`).join('')}</div>` : '';
   if (problem) { mount.innerHTML = `<div class="info-box danger">${icon('alert', 16)} ${escapeHtml(problem)}</div>${dayHtml}`; return; }
 
   const total = f.r.totalQuantity || 1;
-  const available = total - reservedQuantityIn(f.r.id, f.date, f.range);
+  const available = total - (multi ? reservedQuantityInSpan(f.r.id, f.date, f.endDate, f.range) : reservedQuantityIn(f.r.id, f.date, f.range));
   let cls = 'success', text;
-  if (available <= 0) { cls = 'danger'; text = `<strong>Indisponível</strong> neste período.`; }
+  if (available <= 0) { cls = 'danger'; text = multi ? `<strong>Indisponível</strong> em pelo menos um dia do período.` : `<strong>Indisponível</strong> neste período.`; }
   else if (f.quantity > available) { cls = 'warn'; text = `Só <strong>${available} de ${total}</strong> unidade(s) livre(s) — você pediu ${f.quantity}.`; }
-  else text = total > 1 ? `<strong>${available} de ${total}</strong> unidade(s) livre(s) neste período.` : `<strong>Disponível</strong> neste período.`;
+  else text = (total > 1 ? `<strong>${available} de ${total}</strong> unidade(s) livre(s) neste período.` : `<strong>Disponível</strong> neste período.`)
+    + (multi ? ` <span class="small">(${daySpan(f.date, f.endDate).length} dia(s): ${fmtDateShort(f.date)} a ${fmtDateShort(f.endDate)})</span>` : '');
   mount.innerHTML = `<div class="info-box ${cls}">${icon(cls === 'success' ? 'check' : 'alert', 16)} ${text}</div>${dayHtml}`;
 }
 
@@ -338,20 +394,22 @@ function submitReservation() {
   if (!purposeType) return toast('Escolha o tipo de atividade.', 'error');
   if (purpose.length < 10) return toast('Descreva o uso (mínimo 10 caracteres).', 'error');
   if (f.r.status === 'maintenance' || !f.r.active) return toast('Recurso indisponível.', 'error');
-  const problem = dateProblem(f.date) || rangeProblem(f.date, f.range);
+  const multi = f.mode === 'days';
+  const problem = multi ? daysProblem(f.date, f.endDate, f.r) : (dateProblem(f.date) || rangeProblem(f.date, f.range));
   if (problem) return toast(problem, 'error');
   const total = f.r.totalQuantity || 1;
   if (!(f.quantity >= 1 && f.quantity <= total)) return toast(`Quantidade inválida (1 a ${total}).`, 'error');
-  const free = total - reservedQuantityIn(f.r.id, f.date, f.range);
-  if (f.quantity > free) return toast(free > 0 ? `Só ${free} unidade(s) livre(s) neste período.` : 'Período já ocupado. Escolha outro horário.', 'error');
+  const free = total - (multi ? reservedQuantityInSpan(f.r.id, f.date, f.endDate, f.range) : reservedQuantityIn(f.r.id, f.date, f.range));
+  if (f.quantity > free) return toast(free > 0 ? `Só ${free} unidade(s) livre(s) neste período.` : (multi ? 'O equipamento já está reservado em algum dia do período.' : 'Período já ocupado. Escolha outro horário.'), 'error');
   // Mesmo usuário com outra reserva do mesmo recurso no mesmo período
-  const dup = window.db.reservations.some(x => x.userId === u.id && x.resourceId === f.r.id && x.date === f.date && ACTIVE_STATUSES.includes(x.status) && rangesOverlap(reservationRange(x), f.range));
+  const dup = window.db.reservations.some(x => x.userId === u.id && x.resourceId === f.r.id && ACTIVE_STATUSES.includes(x.status)
+    && resOverlapsDates(x, f.date, f.endDate) && rangesOverlap(reservationRange(x), f.range));
   if (dup) return toast(onBehalf ? `${u.name} já tem uma reserva deste recurso neste período.` : 'Você já tem uma reserva deste recurso neste período.', 'error');
 
   const auto = isAutoApprovedCategory(u.category) || isTechnician();   // reserva feita pela equipe já nasce aprovada
   const res = {
     id: uid('res'), userId: u.id, resourceId: f.r.id,
-    date: f.date, mode: f.mode, slot: f.slot, quantity: f.quantity,
+    date: f.date, ...(multi ? { endDate: f.endDate } : {}), mode: f.mode, slot: f.slot, quantity: f.quantity,
     purpose, purposeType, project,
     status: auto ? 'approved' : 'pending',
     createdAt: Date.now(),
@@ -374,7 +432,9 @@ function notifyUser(toUserId, body) {
   if (!window.db.settings.notifyInApp || !me || me.id === toUserId || !getUser(toUserId)) return;
   window.db.messages.push({ id: uid('msg'), fromUserId: me.id, toUserId, body, sentAt: Date.now(), readAt: null, system: true });
 }
-function resLabel(r) { return `${resourceName(r.resourceId)} — ${fmtDate(r.date)}, ${slotText(r)}`; }
+function resLabel(r) {
+  return isMultiDay(r) ? `${resourceName(r.resourceId)} — de ${fmtDate(r.date)} a ${fmtDate(resEnd(r))}` : `${resourceName(r.resourceId)} — ${fmtDate(r.date)}, ${slotText(r)}`;
+}
 
 async function approveReservation(id) {
   const r = getReservation(id); if (!r || r.status !== 'pending' || !canApproveReservations()) return;
@@ -470,7 +530,7 @@ function showResDetail(id) {
   const me = currentUser();
   const staff = canApproveReservations();
   const isOwner = me && me.id === r.userId;
-  const future = r.date >= todayISO();
+  const future = resEnd(r) >= todayISO();
   const img = safeImg(res?.photo);
   const retImg = safeImg(r.returnPhoto);
 
@@ -482,7 +542,7 @@ function showResDetail(id) {
   if (staff && ['approved','in_use'].includes(r.status) && !r.returnPhotoRequired && r.date <= todayISO()) actions.push(`<button class="btn success" onclick="completeReservation('${r.id}')">${icon('flag', 16)} Concluir</button>`);
   if (isOwner && r.returnPhotoRequired && ['approved','in_use'].includes(r.status) && r.date <= todayISO()) actions.push(`<button class="btn green" onclick="openReturnPhotoModal('${r.id}')">${icon('camera', 16)} Enviar foto de devolução</button>`);
   if (staff && r.status === 'awaiting_return') actions.push(`<button class="btn danger" onclick="rejectReturn('${r.id}')">Pendência</button>`, `<button class="btn success" onclick="completeReservation('${r.id}')">${icon('check', 16)} Conferir devolução</button>`);
-  if (staff && ['approved','in_use'].includes(r.status) && r.returnPhotoRequired && r.date < todayISO()) actions.push(`<button class="btn" onclick="completeReservation('${r.id}')">Receber sem foto</button>`);
+  if (staff && ['approved','in_use'].includes(r.status) && r.returnPhotoRequired && resEnd(r) < todayISO()) actions.push(`<button class="btn" onclick="completeReservation('${r.id}')">Receber sem foto</button>`);
 
   const reasonBox = r.denyReason ? `<div class="info-box danger"><strong>Motivo da recusa:</strong> ${escapeHtml(r.denyReason)}</div>`
     : r.cancelReason ? `<div class="info-box warn"><strong>Cancelamento:</strong> ${escapeHtml(r.cancelReason)}</div>` : '';
@@ -490,7 +550,7 @@ function showResDetail(id) {
   openModal(`
     <div class="modal-head">
       <div><div class="modal-title">${escapeHtml(res?.name || 'Recurso removido')}${r.quantity > 1 ? ` <span class="muted">×${r.quantity}</span>` : ''}</div>
-      <div class="modal-sub">${fmtDateLong(r.date)} · ${slotText(r)}</div></div>
+      <div class="modal-sub">${isMultiDay(r) ? `De ${fmtDateLong(r.date)} a ${fmtDateLong(resEnd(r))} · ${resDayCount(r)} dia(s)` : `${fmtDateLong(r.date)} · ${slotText(r)}`}</div></div>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button>
     </div>
     <div class="modal-body">
@@ -571,9 +631,9 @@ function renderMyReservations() {
   const all = window.db.reservations.filter(r => r.userId === u.id);
   const today = todayISO();
   const groups = {
-    upcoming: all.filter(r => r.date >= today && ACTIVE_STATUSES.includes(r.status)).sort((a, b) => a.date.localeCompare(b.date)),
+    upcoming: all.filter(r => resEnd(r) >= today && ACTIVE_STATUSES.includes(r.status)).sort((a, b) => a.date.localeCompare(b.date)),
     action: all.filter(r => isOverdueReturn(r) || (r.returnPhotoRequired && r.status === 'in_use')),
-    history: all.filter(r => !(r.date >= today && ACTIVE_STATUSES.includes(r.status))).sort((a, b) => b.date.localeCompare(a.date))
+    history: all.filter(r => !(resEnd(r) >= today && ACTIVE_STATUSES.includes(r.status))).sort((a, b) => b.date.localeCompare(a.date))
   };
   const list = groups[myResFilter];
   const tabs = [['upcoming', 'Próximas'], ['action', 'Devoluções pendentes'], ['history', 'Histórico']];

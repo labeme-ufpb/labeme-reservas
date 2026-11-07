@@ -310,7 +310,7 @@ function openStockModal(id, asEmpty = false) {
   ).join('');
 
   const students = window.db.users.filter(u =>
-    ['graduacao', 'mestrado', 'doutorado'].includes(u.category)
+    STUDENT_CATEGORIES.includes(u.category)
   );
   const studentOptions = students.map(s =>
     `<option value="${escapeHtml(s.name)}" ${item.advisee === s.name ? 'selected' : ''}>${escapeHtml(s.name)}</option>`

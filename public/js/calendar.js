@@ -75,7 +75,7 @@ function visibleReservations() {
   });
 }
 function eventsOn(iso) {
-  return visibleReservations().filter(r => r.date === iso)
+  return visibleReservations().filter(r => resCovers(r, iso))
     .sort((a, b) => reservationRange(a).start.localeCompare(reservationRange(b).start));
 }
 function eventClassFor(r) {
@@ -138,7 +138,7 @@ function renderCalendarSummary() {
     return;
   }
   const mine = window.db.reservations.filter(r => r.userId === u.id);
-  const next = mine.filter(r => r.date >= todayISO() && ['approved','pending','in_use'].includes(r.status)).sort((a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start));
+  const next = mine.filter(r => resEnd(r) >= todayISO() && ['approved','pending','in_use'].includes(r.status)).sort((a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start));
   const overdue = mine.filter(isOverdueReturn);
   el.innerHTML = `<div class="summary-strip">
     <div class="sum-item"><span class="sum-n">${next.length}</span><span class="sum-l">reserva(s) futura(s)</span></div>

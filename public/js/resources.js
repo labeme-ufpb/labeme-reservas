@@ -57,7 +57,7 @@ function renderResources() {
     lastGroup = g;
     const img = safeImg(r.photo);
     const maintenance = r.status === 'maintenance';
-    const upcoming = window.db.reservations.filter(x => x.resourceId === r.id && ['approved','in_use','pending'].includes(x.status) && x.date >= today).length;
+    const upcoming = window.db.reservations.filter(x => x.resourceId === r.id && ['approved','in_use','pending'].includes(x.status) && resEnd(x) >= today).length;
     return head + `<article class="resource-card ${maintenance ? 'in-maintenance' : ''}">
       <button class="card-photo" onclick="showResourceDetail('${r.id}')" aria-label="Ver ficha de ${escapeHtml(r.name)}">
         ${img ? `<img src="${img}" alt="" loading="lazy">` : `<span class="card-photo-ph">${icon('box', 34)}</span>`}
@@ -95,7 +95,7 @@ function showResourceDetail(id) {
   const r = getResource(id); if (!r) return;
   const img = safeImg(r.photo);
   const today = todayISO();
-  const next = window.db.reservations.filter(x => x.resourceId === id && ACTIVE_STATUSES.includes(x.status) && x.date >= today)
+  const next = window.db.reservations.filter(x => x.resourceId === id && ACTIVE_STATUSES.includes(x.status) && resEnd(x) >= today)
     .sort((a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start)).slice(0, 6);
   const rules = [
     r.requiresTechnicianPresence && 'Presença de técnico obrigatória',

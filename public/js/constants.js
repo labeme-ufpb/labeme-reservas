@@ -4,6 +4,7 @@
 
 const CATEGORY_LABELS = {
   graduacao: 'Graduação',
+  graduacao_vinculo: 'Graduação com vínculo',
   mestrado: 'Mestrado',
   doutorado: 'Doutorado',
   prof_depto: 'Professor (Depto)',
@@ -11,8 +12,11 @@ const CATEGORY_LABELS = {
   tecnico: 'Técnico-Adm.',
   externo: 'Externo à UFPB'
 };
-const CATEGORY_ORDER = ['graduacao','mestrado','doutorado','prof_depto','prof_externo','tecnico','externo'];
-const STUDENT_CATEGORIES = ['graduacao','mestrado','doutorado'];
+const CATEGORY_ORDER = ['graduacao','graduacao_vinculo','mestrado','doutorado','prof_depto','prof_externo','tecnico','externo'];
+// "Graduação com vínculo": aluno de graduação com autonomia no laboratório. Só a coordenação atribui
+// (não aparece no cadastro) e, por padrão, tem aprovação automática das reservas.
+const STAFF_ONLY_CATEGORIES = ['graduacao_vinculo'];
+const STUDENT_CATEGORIES = ['graduacao','graduacao_vinculo','mestrado','doutorado'];
 const EXTERNAL_CATEGORIES = ['prof_externo','externo'];
 
 const TURNO_LABELS = { manha: 'Manhã', tarde: 'Tarde' };
@@ -23,7 +27,7 @@ const ROLE_LABELS = {
   admin: 'Coordenação'
 };
 
-const AUTO_APPROVE_CATEGORIES = ['mestrado','doutorado','prof_depto','prof_externo','tecnico'];
+const AUTO_APPROVE_CATEGORIES = ['graduacao_vinculo','mestrado','doutorado','prof_depto','prof_externo','tecnico'];
 
 function isAutoApprovedCategory(category) {
   const list = window.db?.settings?.autoApproveCategories;
@@ -179,17 +183,31 @@ function turnoText(turno, settings = window.db.settings) {
   const t = turnoRange(turno, settings);
   return t ? `${TURNO_LABELS[turno]} (${t.start}–${t.end})` : (TURNO_LABELS[turno] || turno);
 }
+/* Reservas de vários dias (mode 'days'): de r.date até r.endDate, dias inteiros */
+function isMultiDay(r) { return r && r.mode === 'days'; }
+function resEnd(r) { return r.endDate && r.endDate > r.date ? r.endDate : r.date; }
+function resCovers(r, iso) { return r.date <= iso && iso <= resEnd(r); }
+function resOverlapsDates(r, from, to) { return r.date <= to && resEnd(r) >= from; }
+function daySpan(from, to) { const out = []; let d = from; while (d <= to && out.length < 370) { out.push(d); d = addDaysISO(d, 1); } return out; }
+function resDayCount(r) { return daySpan(r.date, resEnd(r)).length; }
+
 // Converte qualquer reserva para intervalo {start,end} em HH:MM
 function reservationRange(r, settings = window.db.settings) {
+  if (isMultiDay(r)) return { start: '00:00', end: '23:59' };
   if (r.mode === 'slot') return { start: r.slot.start, end: r.slot.end };
   const t = turnoRange(r.slot.turno, settings);
   return t ? { start: t.start, end: t.end } : { start: '00:00', end: '23:59' };
 }
-function reservationHours(r) {
+function reservationHours(r, settings = window.db.settings) {
+  if (isMultiDay(r)) {   // horas de expediente por dia × número de dias
+    const day = ['manha', 'tarde'].reduce((s, t) => { const tr = turnoRange(t, settings); return s + (tr ? (hhmmToMin(tr.end) - hhmmToMin(tr.start)) / 60 : 0); }, 0);
+    return day * resDayCount(r);
+  }
   const { start, end } = reservationRange(r);
   return Math.max(0, (hhmmToMin(end) - hhmmToMin(start)) / 60);
 }
 function slotText(r, settings = window.db.settings) {
+  if (isMultiDay(r)) { const n = resDayCount(r); return n > 1 ? `${n} dias · até ${fmtDateShort(resEnd(r))}` : 'Dia inteiro'; }
   return r.mode === 'slot' ? `${r.slot.start}–${r.slot.end}` : turnoText(r.slot.turno, settings);
 }
 
