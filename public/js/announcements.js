@@ -26,6 +26,7 @@ function checkAnnouncements() {
   if (!currentUser() || modalIsOpen() || currentView === 'auth') return;
   const list = unseenAnnouncements().filter(a => !_annShown.has(a.id));
   if (list.length) showAnnouncementPopup(list.map(a => a.id), 0);
+  else if (typeof checkWaitlistOffers === 'function') checkWaitlistOffers();   // depois dos avisos: vaga liberada na lista de espera
 }
 
 function announcementBody(a) {

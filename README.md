@@ -31,6 +31,11 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.7 (07/11/2026) — manutenção e calibração, QR code e lista de espera
+- **Manutenção e calibração**: ficha de cada equipamento com problemas relatados, manutenções e calibrações (empresa, nº do certificado, próxima data). Qualquer usuário relata problema (com foto opcional); equipe técnica e coordenação registram, resolvem (quem relatou é avisado) e colocam/retiram o equipamento de manutenção. Periodicidade e próxima calibração no cadastro do recurso; alertas de calibração vencida/a vencer (30 dias). Nova aba Coordenação → Manutenção e Painel técnico → Manutenção. Coleção `maintenance`.
+- **QR code**: link direto `#equip/<id>` abre a ficha do equipamento (agenda, reservar, relatar problema); sem login, entra e depois abre a ficha. Etiquetas para impressão A4 (12 ou 4 por folha) em Recursos → Etiquetas QR, e QR individual na ficha. Biblioteca `js/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT).
+- **Lista de espera**: quando o período está ocupado, o usuário entra na fila pelo próprio formulário. Ao cancelamento/recusa, o 1º da fila recebe a janela "Vaga liberada" e reserva com um clique; após 2 h sem resposta, o próximo também é avisado. Aba "Lista de espera" em Minhas reservas. Coleção `waitlist` (entradas antigas limpas automaticamente).
+
 ### v11.6 (06/11/2026) — avisos gerais da coordenação
 - Nova aba **Coordenação → Avisos**: título, mensagem, tipo (informativo ou importante) e data final opcional.
 - Cada usuário vê o aviso em uma janela ao entrar no sistema (ou na hora, se já estiver conectado) até clicar em "Entendi"; o "visto" fica no perfil (`users.seenAnnouncements`) e vale em qualquer aparelho.

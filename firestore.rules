@@ -1,5 +1,5 @@
 rules_version = '2';
-// Regras de acesso do Sistema de Reservas LABEME (v11.6 — avisos gerais)
+// Regras de acesso do Sistema de Reservas LABEME (v11.7 — manutenção, QR code e lista de espera)
 // Perfis: user (alunos/professores), technician (equipe técnica), admin (coordenação)
 // O navegador não é confiável: tudo o que importa é validado aqui.
 service cloud.firestore {
@@ -113,7 +113,11 @@ service cloud.firestore {
         && d.get('totalQuantity', 1) is int && d.get('totalQuantity', 1) >= 1 && d.get('totalQuantity', 1) <= 1000
         && d.get('maxDays', 7) is int && d.get('maxDays', 7) >= 1 && d.get('maxDays', 7) <= 90
         && photoOk(d.get('photo', null))
-        && optStr(d, 'description', 2000) && optStr(d, 'location', 200) && optStr(d, 'group', 100);
+        && optStr(d, 'description', 2000) && optStr(d, 'location', 200) && optStr(d, 'group', 100)
+        && (d.get('calibrationDue', null) == null || isDate(d.get('calibrationDue', null)))
+        && (d.get('lastCalibration', null) == null || isDate(d.get('lastCalibration', null)))
+        && (d.get('calibrationEveryMonths', null) == null
+            || (d.get('calibrationEveryMonths', null) is int && d.get('calibrationEveryMonths', null) >= 1 && d.get('calibrationEveryMonths', null) <= 120));
     }
     match /resources/{id} {
       allow read: if active();
@@ -199,6 +203,58 @@ service cloud.firestore {
       allow create: if isStaff() && validId(id) && stockOk(request.resource.data);
       allow update: if isStaff() && stockOk(request.resource.data);
       allow delete: if isStaff();
+    }
+
+    /* ---------- Manutenção e calibração: todos leem; qualquer usuário relata problema; a equipe registra e resolve ---------- */
+    function maintOk(d) {
+      return d.keys().hasOnly(['id', 'resourceId', 'kind', 'status', 'date', 'description', 'by', 'createdAt', 'photo',
+                               'provider', 'certificate', 'nextDue', 'resolution', 'resolvedAt', 'resolvedBy'])
+        && validId(d.resourceId) && validId(d.by)
+        && d.kind in ['problema', 'manutencao', 'calibracao', 'outro']
+        && d.status in ['aberto', 'resolvido']
+        && isDate(d.date)
+        && str(d.get('description', ''), 2000) && d.get('description', '').size() > 0
+        && optStr(d, 'provider', 200) && optStr(d, 'certificate', 200) && optStr(d, 'resolution', 1000)
+        && (d.get('nextDue', null) == null || isDate(d.get('nextDue', null)))
+        && photoOk(d.get('photo', null))
+        && d.createdAt is int;
+    }
+    match /maintenance/{id} {
+      allow read: if active();
+      allow create: if active() && validId(id) && maintOk(request.resource.data)
+                    && exists(/databases/$(database)/documents/resources/$(request.resource.data.resourceId))
+                    && (isStaff()
+                        || (request.resource.data.kind == 'problema' && request.resource.data.status == 'aberto'
+                            && request.resource.data.by == request.auth.uid
+                            && !('resolution' in request.resource.data)));
+      allow update: if isStaff() && maintOk(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- Lista de espera: todos leem (posição na fila); cada um entra/sai da própria ---------- */
+    function waitOk(d) {
+      return d.keys().hasOnly(['id', 'userId', 'resourceId', 'date', 'endDate', 'mode', 'slot', 'quantity',
+                               'purpose', 'purposeType', 'project', 'status', 'createdAt', 'closedAt'])
+        && validId(d.userId) && validId(d.resourceId) && isDate(d.date)
+        && d.mode in ['turno', 'slot', 'days']
+        && (d.mode != 'turno' || d.slot.turno in ['manha', 'tarde'])
+        && (d.mode != 'slot' || (isHHMM(d.slot.start) && isHHMM(d.slot.end) && d.slot.start < d.slot.end))
+        && (d.mode != 'days' || (isDate(d.endDate) && d.endDate >= d.date))
+        && d.quantity is int && d.quantity >= 1 && d.quantity <= 1000
+        && d.status in ['waiting', 'done', 'left', 'expired']
+        && optStr(d, 'purpose', 2000) && optStr(d, 'project', 300) && optStr(d, 'purposeType', 40)
+        && d.createdAt is int;
+    }
+    match /waitlist/{id} {
+      allow read: if active();
+      allow create: if active() && validId(id) && waitOk(request.resource.data)
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'waiting';
+      allow update: if active() && waitOk(request.resource.data)
+                    && (isStaff()
+                        || (resource.data.userId == request.auth.uid
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'closedAt'])));
+      allow delete: if isStaff() || (active() && resource.data.userId == request.auth.uid);
     }
 
     /* ---------- Avisos gerais: todos os usuários ativos leem; só a coordenação publica ---------- */

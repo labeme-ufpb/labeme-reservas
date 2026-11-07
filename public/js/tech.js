@@ -25,7 +25,7 @@ function renderTechDashboard() {
     <button class="stat-card accent-steel" onclick="setTechRange('week')"><div class="stat-label">Presença técnica</div><div class="stat-value">${presence.length}</div><div class="stat-foot">nos próximos 7 dias</div></button>
     <button class="stat-card accent-navy" onclick="setTechRange('returns')"><div class="stat-label">Devoluções</div><div class="stat-value">${returns.length}</div><div class="stat-foot">a conferir / atrasadas</div></button>`;
 
-  const tabs = [['pending','Pendentes',pending.length],['today','Hoje',todayList.length],['week','Próximos 7 dias',week.length],['returns','Devoluções',returns.length]];
+  const tabs = [['pending','Pendentes',pending.length],['today','Hoje',todayList.length],['week','Próximos 7 dias',week.length],['returns','Devoluções',returns.length],['maint','Manutenção',maintenanceBadgeCount()]];
   document.getElementById('techTabs').innerHTML = tabs.map(([k, l, n]) =>
     `<button role="tab" aria-selected="${techRange === k}" class="${techRange === k ? 'active' : ''}" onclick="setTechRange('${k}')">${l}${n ? ` <span class="count">${n}</span>` : ''}</button>`).join('');
 
@@ -41,6 +41,8 @@ function renderTechDashboard() {
     mount.innerHTML = Object.keys(byDay).length ? Object.entries(byDay).map(([d, list]) =>
       `<section class="agenda-day"><h3>${fmtDateLong(d)}</h3><div class="res-list">${list.map(r => reservationRow(r, { quick: true })).join('')}</div></section>`).join('')
       : empty('Nenhuma reserva nos próximos 7 dias.');
+  } else if (techRange === 'maint') {
+    mount.innerHTML = `<div class="flex-row" style="margin-bottom:12px;justify-content:flex-end;"><button class="btn" onclick="openQrLabelsModal()">${icon('qr', 16)} Etiquetas QR</button></div>` + maintenanceOverviewHtml();
   } else {
     mount.innerHTML = returns.length ? `<div class="res-list">${returns.sort(byTime).map(r => reservationRow(r, { quick: true })).join('')}</div>` : empty('Nenhuma devolução pendente.');
   }

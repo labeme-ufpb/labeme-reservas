@@ -14,7 +14,7 @@
 
 const SESSION_KEY = 'labeme_session_v10';   // mantido por compatibilidade (sessão agora é do Firebase Auth)
 const SCHEMA_VERSION = 11;
-const COLLECTIONS = ['users', 'resources', 'reservations', 'stock', 'messages', 'announcements'];
+const COLLECTIONS = ['users', 'resources', 'reservations', 'stock', 'messages', 'announcements', 'maintenance', 'waitlist'];
 
 const DEFAULT_SETTINGS = {
   minAdvanceHours: 24,
@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS = {
 function emptyDB() {
   return {
     schema: SCHEMA_VERSION,
-    users: [], resources: [], reservations: [], messages: [], stock: [], announcements: [], passwordResets: [],
+    users: [], resources: [], reservations: [], messages: [], stock: [], announcements: [], maintenance: [], waitlist: [], passwordResets: [],
     settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
   };
 }
@@ -62,7 +62,7 @@ function normalizeDoc(c, d) {
 }
 function normalizeDB(d) {
   const out = Object.assign(emptyDB(), d || {});
-  ['users','resources','reservations','messages','stock','announcements','passwordResets'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  ['users','resources','reservations','messages','stock','announcements','maintenance','waitlist','passwordResets'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   out.settings = normalizeSettings(out.settings);
   COLLECTIONS.forEach(c => out[c].forEach(x => normalizeDoc(c, x)));
   out.schema = SCHEMA_VERSION;
@@ -124,7 +124,7 @@ function startSync(uid) {
     window.db.settings = normalizeSettings(snap.exists ? snap.data() : {});
     _sync.settingsKnown = stableStringify(window.db.settings);
   });
-  ['users', 'resources', 'reservations', 'stock', 'announcements'].forEach(c =>
+  ['users', 'resources', 'reservations', 'stock', 'announcements', 'maintenance', 'waitlist'].forEach(c =>
     watch(c, fb.fs.collection(c), snap => _applyCollection(c, snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })))));
   // Mensagens: cada pessoa só lê as próprias (enviadas e recebidas)
   const applyMsgs = () => _applyCollection('messages', [...new Map([..._sync.msg.from, ..._sync.msg.to]).values()]);
@@ -190,6 +190,22 @@ function sanitizeDoc(c, d) {
     d.totalQuantity = Math.max(1, parseInt(d.totalQuantity, 10) || 1);
     if (d.maxDays != null) d.maxDays = Math.max(1, Math.min(90, parseInt(d.maxDays, 10) || 7));
     d.name = String(d.name || '');
+    if (d.calibrationDue != null && !_ISO.test(d.calibrationDue)) delete d.calibrationDue;
+  } else if (c === 'maintenance') {
+    if (!isSafeId(d.resourceId) || !['problema', 'manutencao', 'calibracao', 'outro'].includes(d.kind) || !_ISO.test(d.date || '')) return null;
+    d.status = d.status === 'aberto' ? 'aberto' : 'resolvido';
+    d.description = String(d.description || '').slice(0, 2000);
+    ['provider', 'certificate', 'resolution'].forEach(k => { if (d[k] != null) d[k] = String(d[k]); });
+    if (d.nextDue != null && !_ISO.test(d.nextDue)) delete d.nextDue;
+  } else if (c === 'waitlist') {
+    if (!isSafeId(d.userId) || !isSafeId(d.resourceId) || !_ISO.test(d.date || '')) return null;
+    if (!['turno', 'slot', 'days'].includes(d.mode)) return null;
+    d.slot = d.slot && typeof d.slot === 'object' ? d.slot : {};
+    if (d.mode === 'slot' && !(_HHMM.test(d.slot.start || '') && _HHMM.test(d.slot.end || ''))) return null;
+    if (d.mode === 'turno' && !['manha', 'tarde'].includes(d.slot.turno)) return null;
+    if (d.mode === 'days' && !_ISO.test(d.endDate || '')) return null;
+    d.quantity = Math.max(1, Math.min(1000, parseInt(d.quantity, 10) || 1));
+    d.createdAt = Number(d.createdAt) || 0;
   } else if (c === 'announcements') {
     d.title = String(d.title || '').slice(0, 120);
     d.body = String(d.body || '').slice(0, 3000);
@@ -466,6 +482,14 @@ function runHousekeeping() {
       r.status = 'completed'; logReservation(r, 'auto_completed'); changed++;
     }
   });
+  // Lista de espera: encerra filas de datas passadas e apaga registros antigos já encerrados
+  const old = Date.now() - 60 * 864e5;
+  (window.db.waitlist || []).forEach(w => {
+    if (w.status === 'waiting' && (w.endDate || w.date) < today) { w.status = 'expired'; w.closedAt = Date.now(); changed++; }
+  });
+  const before = (window.db.waitlist || []).length;
+  window.db.waitlist = (window.db.waitlist || []).filter(w => w.status === 'waiting' || (w.closedAt || w.createdAt) > old);
+  changed += before - window.db.waitlist.length;
   if (changed) saveDB();
   return changed;
 }

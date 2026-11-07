@@ -378,52 +378,73 @@ function updateAvailability() {
   else if (f.quantity > available) { cls = 'warn'; text = `Só <strong>${available} de ${total}</strong> unidade(s) livre(s) — você pediu ${f.quantity}.`; }
   else text = (total > 1 ? `<strong>${available} de ${total}</strong> unidade(s) livre(s) neste período.` : `<strong>Disponível</strong> neste período.`)
     + (multi ? ` <span class="small">(${daySpan(f.date, f.endDate).length} dia(s): ${fmtDateShort(f.date)} a ${fmtDateShort(f.endDate)})</span>` : '');
-  mount.innerHTML = `<div class="info-box ${cls}">${icon(cls === 'success' ? 'check' : 'alert', 16)} ${text}</div>${dayHtml}`;
+  const wl = cls !== 'success' ? waitlistHintHtml(f) : '';
+  mount.innerHTML = `<div class="info-box ${cls}">${icon(cls === 'success' ? 'check' : 'alert', 16)} <div>${text}${wl}</div></div>${dayHtml}`;
 }
 
 function submitReservation() {
   const me = currentUser(); if (!me) return;
   const forSel = document.getElementById('resFor');
   const u = (isTechnician() && forSel && getUser(forSel.value)) || me;   // titular da reserva
-  const onBehalf = u.id !== me.id;
   const f = readReservationForm();
-  const purpose = document.getElementById('resPurpose').value.trim();
-  const purposeType = document.getElementById('resPurposeType').value;
-  const project = document.getElementById('resProject').value.trim();
   if (!f) return toast('Escolha o equipamento ou espaço.', 'error');
-  if (!purposeType) return toast('Escolha o tipo de atividade.', 'error');
-  if (purpose.length < 10) return toast('Descreva o uso (mínimo 10 caracteres).', 'error');
-  if (f.r.status === 'maintenance' || !f.r.active) return toast('Recurso indisponível.', 'error');
-  const multi = f.mode === 'days';
-  const problem = multi ? daysProblem(f.date, f.endDate, f.r) : (dateProblem(f.date) || rangeProblem(f.date, f.range));
-  if (problem) return toast(problem, 'error');
-  const total = f.r.totalQuantity || 1;
-  if (!(f.quantity >= 1 && f.quantity <= total)) return toast(`Quantidade inválida (1 a ${total}).`, 'error');
-  const free = total - (multi ? reservedQuantityInSpan(f.r.id, f.date, f.endDate, f.range) : reservedQuantityIn(f.r.id, f.date, f.range));
-  if (f.quantity > free) return toast(free > 0 ? `Só ${free} unidade(s) livre(s) neste período.` : (multi ? 'O equipamento já está reservado em algum dia do período.' : 'Período já ocupado. Escolha outro horário.'), 'error');
+  const out = createReservation({
+    u, r: f.r, date: f.date, endDate: f.endDate, mode: f.mode, slot: f.slot, quantity: f.quantity, range: f.range,
+    purpose: document.getElementById('resPurpose').value.trim(),
+    purposeType: document.getElementById('resPurposeType').value,
+    project: document.getElementById('resProject').value.trim()
+  });
+  if (typeof out === 'string') {
+    if (out === 'OCCUPIED') return offerWaitlistFromForm();
+    return toast(out, 'error');
+  }
+  closeModal();
+  toast(out.onBehalf ? `Reserva registrada para ${firstName(u.name)}.` : out.auto ? 'Reserva confirmada!' : 'Solicitação enviada — aguardando aprovação.', 'success');
+  refreshCurrentView();
+}
+
+/* Cria a reserva (usada pelo formulário e pela lista de espera).
+   Retorna { res, auto, onBehalf } ou uma mensagem de erro ('OCCUPIED' = período cheio). */
+function createReservation({ u, r, date, endDate, mode, slot, quantity, range, purpose, purposeType, project = '' }) {
+  const me = currentUser(); if (!me) return 'Entre no sistema.';
+  const onBehalf = u.id !== me.id;
+  if (!r) return 'Escolha o equipamento ou espaço.';
+  if (!purposeType) return 'Escolha o tipo de atividade.';
+  if (!purpose || purpose.length < 10) return 'Descreva o uso (mínimo 10 caracteres).';
+  if (r.status === 'maintenance' || !r.active) return 'Recurso indisponível (em manutenção ou inativo).';
+  const multi = mode === 'days';
+  if (multi && !r.allowMultiDay) return 'Este equipamento não aceita reservas de vários dias.';
+  range = range || (multi ? { start: '00:00', end: '23:59' } : mode === 'slot' ? { start: slot.start, end: slot.end } : turnoRange(slot.turno));
+  endDate = multi ? endDate : date;
+  const problem = multi ? daysProblem(date, endDate, r) : (dateProblem(date) || rangeProblem(date, range));
+  if (problem) return problem;
+  const limit = window.db.settings.maxActivePerUser || 0;
+  if (limit && !isTechnician() && activeFutureCount(u.id) >= limit) return `Você já tem ${limit} reservas futuras ativas (limite do laboratório).`;
+  const total = r.totalQuantity || 1;
+  if (!(quantity >= 1 && quantity <= total)) return `Quantidade inválida (1 a ${total}).`;
+  const free = total - (multi ? reservedQuantityInSpan(r.id, date, endDate, range) : reservedQuantityIn(r.id, date, range));
+  if (quantity > free) return 'OCCUPIED';
   // Mesmo usuário com outra reserva do mesmo recurso no mesmo período
-  const dup = window.db.reservations.some(x => x.userId === u.id && x.resourceId === f.r.id && ACTIVE_STATUSES.includes(x.status)
-    && resOverlapsDates(x, f.date, f.endDate) && rangesOverlap(reservationRange(x), f.range));
-  if (dup) return toast(onBehalf ? `${u.name} já tem uma reserva deste recurso neste período.` : 'Você já tem uma reserva deste recurso neste período.', 'error');
+  const dup = window.db.reservations.some(x => x.userId === u.id && x.resourceId === r.id && ACTIVE_STATUSES.includes(x.status)
+    && resOverlapsDates(x, date, endDate) && rangesOverlap(reservationRange(x), range));
+  if (dup) return onBehalf ? `${u.name} já tem uma reserva deste recurso neste período.` : 'Você já tem uma reserva deste recurso neste período.';
 
   const auto = isAutoApprovedCategory(u.category) || isTechnician();   // reserva feita pela equipe já nasce aprovada
   const res = {
-    id: uid('res'), userId: u.id, resourceId: f.r.id,
-    date: f.date, ...(multi ? { endDate: f.endDate } : {}), mode: f.mode, slot: f.slot, quantity: f.quantity,
+    id: uid('res'), userId: u.id, resourceId: r.id,
+    date, ...(multi ? { endDate } : {}), mode, slot: multi ? {} : slot, quantity,
     purpose, purposeType, project,
     status: auto ? 'approved' : 'pending',
     createdAt: Date.now(),
-    returnPhotoRequired: !!f.r.requiresReturnPhoto, returnPhoto: null, returnedAt: null,
+    returnPhotoRequired: !!r.requiresReturnPhoto, returnPhoto: null, returnedAt: null,
     history: [], ...(onBehalf ? { createdBy: me.id } : {})
   };
   logReservation(res, onBehalf ? 'created_by_staff' : 'created');
   if (auto) { res.decidedAt = Date.now(); res.decidedBy = 'auto'; logReservation(res, 'auto_approved'); }
   window.db.reservations.push(res);
-  if (!saveDB()) { window.db.reservations.pop(); return; }
+  if (!saveDB()) { window.db.reservations.pop(); return 'Não foi possível salvar.'; }
   if (onBehalf) { notifyUser(u.id, `📅 ${me.name} registrou uma reserva para você: ${resLabel(res)}.`); saveDB(); }
-  closeModal();
-  toast(onBehalf ? `Reserva registrada para ${firstName(u.name)}.` : auto ? 'Reserva confirmada!' : 'Solicitação enviada — aguardando aprovação.', 'success');
-  refreshCurrentView();
+  return { res, auto, onBehalf };
 }
 
 /* ---------------- Ações de ciclo de vida ---------------- */
@@ -463,7 +484,8 @@ async function cancelReservation(id) {
   r.status = 'cancelled'; r.cancelReason = ans.reason || (isOwner ? 'Cancelada pelo solicitante' : ''); r.cancelledAt = Date.now(); r.cancelledBy = me.id;
   logReservation(r, 'cancelled', { reason: r.cancelReason });
   if (!isOwner) notifyUser(r.userId, `⚠️ Sua reserva foi CANCELADA pela equipe do laboratório: ${resLabel(r)}. Motivo: ${ans.reason}`);
-  saveDB(); toast('Reserva cancelada.', 'warn'); refreshCurrentView();
+  const fila = waitlistCountFor(r);
+  saveDB(); toast(fila ? `Reserva cancelada — ${fila} pessoa(s) da lista de espera serão avisadas.` : 'Reserva cancelada.', 'warn'); refreshCurrentView();
 }
 function checkInReservation(id) {
   const r = getReservation(id); if (!r || r.status !== 'approved' || !canApproveReservations()) return;
@@ -635,11 +657,12 @@ function renderMyReservations() {
     action: all.filter(r => isOverdueReturn(r) || (r.returnPhotoRequired && r.status === 'in_use')),
     history: all.filter(r => !(resEnd(r) >= today && ACTIVE_STATUSES.includes(r.status))).sort((a, b) => b.date.localeCompare(a.date))
   };
+  groups.waitlist = myWaitlist(u).filter(w => w.status === 'waiting' && waitStillValid(w));
   const list = groups[myResFilter];
-  const tabs = [['upcoming', 'Próximas'], ['action', 'Devoluções pendentes'], ['history', 'Histórico']];
+  const tabs = [['upcoming', 'Próximas'], ['action', 'Devoluções pendentes'], ['waitlist', 'Lista de espera'], ['history', 'Histórico']];
   document.getElementById('myResContent').innerHTML = `
     <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${myResFilter === k}" class="${myResFilter === k ? 'active' : ''}" onclick="setMyResFilter('${k}')">${l}${groups[k].length ? ` <span class="count">${groups[k].length}</span>` : ''}</button>`).join('')}</div>
-    ${list.length === 0 ? `<div class="empty">${icon('calendar', 28)}<div>${myResFilter === 'upcoming' ? 'Nenhuma reserva futura.' : myResFilter === 'action' ? 'Nenhuma devolução pendente.' : 'Sem histórico ainda.'}</div>
+    ${myResFilter === 'waitlist' ? renderMyWaitlist() : list.length === 0 ? `<div class="empty">${icon('calendar', 28)}<div>${myResFilter === 'upcoming' ? 'Nenhuma reserva futura.' : myResFilter === 'action' ? 'Nenhuma devolução pendente.' : 'Sem histórico ainda.'}</div>
       ${myResFilter === 'upcoming' ? `<button class="btn dark mt-4" onclick="openReserveModal()">${icon('plus', 16)} Nova reserva</button>` : ''}</div>`
     : `<div class="res-list">${list.map(r => reservationRow(r, { showUser: false })).join('')}</div>`}`;
 }

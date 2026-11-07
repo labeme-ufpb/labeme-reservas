@@ -10,7 +10,7 @@ let allResFilters = { status: 'all', from: '', to: '', q: '' };
 let reportPeriod = 'semester';
 
 const ADMIN_TABS = [
-  ['pending', 'Pendentes', 'clock'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'],
+  ['pending', 'Pendentes', 'clock'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'], ['maintenance', 'Manutenção', 'wrench'],
   ['users', 'Usuários', 'users'], ['announcements', 'Avisos', 'megaphone'], ['all-res', 'Reservas', 'list'], ['reports', 'Relatórios', 'chart'],
   ['settings', 'Configurações', 'settings'], ['backup', 'Backup', 'database']
 ];
@@ -22,7 +22,7 @@ function renderAdmin() {
   const R = window.db.reservations, today = todayISO();
   const pending = R.filter(r => r.status === 'pending').length;
   const returns = R.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r)).length;
-  const badges = { pending, returns };
+  const badges = { pending, returns, maintenance: maintenanceBadgeCount() };
 
   document.getElementById('adminSide').innerHTML = ADMIN_TABS.map(([k, l, ic]) =>
     `<button class="${adminTab === k ? 'active' : ''}" aria-current="${adminTab === k ? 'page' : 'false'}" onclick="setAdminTab('${k}')">${icon(ic, 17)}<span>${l}</span>${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
@@ -35,7 +35,7 @@ function renderAdmin() {
     <button class="stat-card accent-navy" onclick="setAdminTab('resources')"><div class="stat-label">Em manutenção</div><div class="stat-value">${maint}</div><div class="stat-foot">de ${window.db.resources.filter(r => r.active).length} recursos ativos</div></button>`;
 
   const content = document.getElementById('adminContent');
-  const fn = { pending: adminPending, returns: adminReturns, resources: adminResources, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
+  const fn = { pending: adminPending, returns: adminReturns, resources: adminResources, maintenance: maintenanceOverviewHtml, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
     reports: adminReports, settings: adminSettings, backup: adminBackup }[adminTab] || adminPending;
   content.innerHTML = fn();
 }
@@ -63,6 +63,7 @@ function adminResources() {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
   const actions = `<div class="input-icon">${icon('search', 16)}<input type="search" placeholder="Buscar recurso" value="${escapeHtml(adminResSearch)}" oninput="adminResSearch=this.value;debouncedAdmin()"></div>
     <button class="btn" onclick="exportResourcesCSV()">${icon('download', 16)} CSV</button>
+    <button class="btn" onclick="openQrLabelsModal()">${icon('qr', 16)} Etiquetas QR</button>
     <button class="btn dark" onclick="openResourceModal()">${icon('plus', 16)} Adicionar</button>`;
   return panel('Recursos', `${window.db.resources.length} cadastrados · ${window.db.resources.filter(r => r.active).length} ativos · ${window.db.resources.filter(r => r.status === 'maintenance').length} em manutenção`,
     `<div class="panel-body table-wrap"><table class="data-table">
@@ -142,6 +143,12 @@ function openResourceModal(id) {
         <div class="field"><label for="rActive">Visibilidade</label><select id="rActive">
           <option value="true" ${r.active ? 'selected' : ''}>Ativo</option><option value="false" ${!r.active ? 'selected' : ''}>Inativo (inservível / baixado)</option></select></div>
       </div>
+      <div class="section-label" style="margin-top:14px;">Calibração</div>
+      <div class="field-row">
+        <div class="field"><label for="rCalEvery">Periodicidade (meses)</label><input type="number" id="rCalEvery" min="1" max="120" value="${r.calibrationEveryMonths || ''}" placeholder="Ex.: 12 (vazio = não controla)"></div>
+        <div class="field"><label for="rCalDue">Próxima calibração</label><input type="date" id="rCalDue" value="${r.calibrationDue || ''}">
+          <div class="field-help">Gera alerta para a equipe 30 dias antes do vencimento.</div></div>
+      </div>
       <div class="field"><label for="rCond">Observação de estado</label><input type="text" id="rCond" value="${escapeHtml(r.conditionNote || '')}" placeholder="Ex.: falta instalação; aguardando peça"></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="saveResource('${id || ''}')">Salvar</button></div>`, true);
@@ -169,7 +176,9 @@ function saveResource(id) {
     requiresReturnPhoto: document.getElementById('rReturnPhoto').checked,
     allowMultiDay: document.getElementById('rMultiDay').checked,
     maxDays: Math.min(90, Math.max(2, parseInt(v('rMaxDays'), 10) || 7)),
-    photo: window._resourcePhotoData || null
+    photo: window._resourcePhotoData || null,
+    calibrationEveryMonths: Math.min(120, Math.max(1, parseInt(v('rCalEvery'), 10) || 0)) || null,
+    calibrationDue: /^\d{4}-\d{2}-\d{2}$/.test(v('rCalDue')) ? v('rCalDue') : null
   };
   if (!data.name) return toast('Informe o nome.', 'error');
   if (!data.group) return toast(document.getElementById('rGroupSel').value === '__new__' ? 'Digite o nome do novo grupo.' : 'Escolha o grupo do equipamento.', 'error');

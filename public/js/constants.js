@@ -5,7 +5,7 @@
 /* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
    Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
    recarrega uma vez buscando a página atualizada. */
-const APP_BUILD = '11.6.1';
+const APP_BUILD = '11.7';
 (function checkBuild() {
   try {
     if (window.APP_BUILD === APP_BUILD) {
@@ -91,6 +91,7 @@ const STOCK_UNITS = ['kg','g','L','mL','sacos','unidades','caixas','galões','m�
 
 /* ============ ÍCONES (SVG inline, traço 1.75) ============ */
 const ICON_PATHS = {
+  qr: '<rect x="3.5" y="3.5" width="6" height="6" rx="1"/><rect x="14.5" y="3.5" width="6" height="6" rx="1"/><rect x="3.5" y="14.5" width="6" height="6" rx="1"/><path d="M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h.01M17.5 20.5h3v-3"/>',
   megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
   calendar: '<rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',

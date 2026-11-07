@@ -8,6 +8,7 @@ let currentView = 'calendar';
 
 function showView(name, { push = true } = {}) {
   if (!VIEWS.includes(name)) name = 'calendar';
+  if (!currentUser() && name === 'auth' && equipFromHash()) window._afterLoginEquip = equipFromHash();
   const u = currentUser();
   const need = PROTECTED[name];
   // Nada é exibido sem login: visitante sempre cai na página de boas-vindas
@@ -122,10 +123,12 @@ async function onAuthChanged(fbUser) {
     refreshAuthUI();
     if (_bootDone) toast(isNew ? 'Cadastro realizado!' : `Bem-vindo(a), ${firstName(u.name)}!`, 'success');
     const fromHash = (location.hash || '').slice(1);
+    const equip = window._afterLoginEquip || equipFromHash(); window._afterLoginEquip = null;
     const pending = window._afterLogin; window._afterLogin = null;
     const target = pending || (!_bootDone && VIEWS.includes(fromHash) && fromHash !== 'auth' ? fromHash : null) || (u.incomplete ? 'profile' : homeViewFor(u));
-    showView(target, { push: _bootDone });
-    _annShown.clear();
+    if (equip) openEquipFromLink(equip);          // veio pelo QR code do equipamento
+    else showView(target, { push: _bootDone });
+    _annShown.clear(); _wlShown.clear();
     setTimeout(() => {
       checkAnnouncements();   // avisos da coordenação têm prioridade
       if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder();
@@ -156,7 +159,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('modalOverlay').classList.contains('show')) { window._confirmResolve ? _confirmResolve(null) : closeModal(); }
     else closeMobileNav();
   });
-  window.addEventListener('popstate', () => showView((location.hash || '#calendar').slice(1), { push: false }));
+  window.addEventListener('popstate', () => {
+    const equip = equipFromHash();
+    if (equip && currentUser()) return openEquipFromLink(equip);
+    showView((location.hash || '#calendar').slice(1), { push: false });
+  });
+  // vaga da lista de espera que abre por tempo (prioridade do 1º da fila venceu)
+  setInterval(() => { if (currentUser() && isSynced() && !document.hidden) checkAnnouncements(); }, 5 * 60 * 1000);
   window.matchMedia('(max-width: 720px)').addEventListener?.('change', e => { if (e.matches && calView === 'month') { calView = 'agenda'; calDate = new Date(); if (currentView === 'calendar') renderCalendar(); } });
   window.addEventListener('resize', debounce(fitNav, 120));
 
