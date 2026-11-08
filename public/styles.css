@@ -2625,3 +2625,7 @@ body.nav-compact .nav-user-name { overflow: hidden; text-overflow: ellipsis; whi
   .crop-head, .crop-tools, .crop-foot { padding-left: 12px; padding-right: 12px; }
   .crop-stage { margin: 0 12px; }
 }
+
+/* v11.8.1 · prévia quadrada da foto do estoque */
+.file-preview.crop-preview-sq { aspect-ratio: 1 / 1; object-fit: cover; width: 100%; max-width: 220px; height: auto; max-height: none; }
+.crop-stage { margin-left: auto !important; margin-right: auto !important; }

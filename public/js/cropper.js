@@ -4,7 +4,8 @@
    - Arrastar move a foto; controle deslizante, roda do mouse ou
      pinça (2 dedos) aproximam/afastam; botão gira 90°
    - Afastando além do limite a foto aparece inteira com fundo branco
-   - Resultado: JPG 1200 × 800 (proporção 3:2, a mesma do cartão do catálogo)
+   - Equipamentos: JPG 1200 × 800 (3:2, a mesma do cartão do catálogo)
+   - Estoque de materiais: JPG 1000 × 1000 (1:1, as miniaturas do estoque são quadradas)
    ============================================================ */
 
 const CROP_RATIO = 3 / 2;
@@ -69,8 +70,9 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
       function render() { clamp(); paint(canvas, canvas.width / st.fw); zoom.value = toSlider(st.scale); }
       function layout(first) {
         const old = st.fw;
-        st.fw = stage.clientWidth; st.fh = Math.round(st.fw / ratio);
-        stage.style.height = st.fh + 'px';
+        stage.style.width = '';   // mede a largura disponível; limita a altura a ~55% da tela
+        st.fw = Math.round(Math.min(stage.clientWidth, window.innerHeight * 0.55 * ratio)); st.fh = Math.round(st.fw / ratio);
+        stage.style.width = st.fw + 'px'; stage.style.height = st.fh + 'px';
         const dpr = Math.min(2, window.devicePixelRatio || 1);
         canvas.width = Math.round(st.fw * dpr); canvas.height = Math.round(st.fh * dpr);
         canvas.style.width = st.fw + 'px'; canvas.style.height = st.fh + 'px';
@@ -118,7 +120,8 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
         if (act === 'rot') { st.rot = (st.rot + 90) % 360; st.x = st.y = 0; st.scale = limits().cover; return render(); }
         if (act === 'ok') {
           const out = document.createElement('canvas');
-          out.width = CROP_OUT_W; out.height = Math.round(CROP_OUT_W / ratio);
+          out.width = ratio >= 1 ? CROP_OUT_W : Math.round(CROP_OUT_W * ratio); out.height = Math.round(out.width / ratio);
+          if (ratio === 1) out.width = out.height = 1000;
           paint(out, out.width / st.fw);
           let data = null;
           try { data = out.toDataURL('image/jpeg', 0.82); } catch (_) { toast('Esta foto não pode ser ajustada aqui. Escolha o arquivo novamente.', 'error'); }
@@ -129,6 +132,23 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
       ov.querySelector('[data-act=ok]').focus();
     }
   });
+}
+
+/* Foto do estoque de materiais (quadrada) */
+async function cropStockPhoto(src) {
+  const out = await openCropper(src, { ratio: 1, title: 'Enquadrar foto do estoque' });
+  if (!out) return;
+  window._stockPhotoData = out;
+  const p = document.getElementById('stockPhotoPreview'); if (p) { p.src = out; p.style.display = 'block'; }
+  const t = document.getElementById('stockPhotoText'); if (t) t.textContent = '✓ Foto carregada — clique para trocar';
+  document.getElementById('stockPhotoLabel')?.classList.add('has-file');
+  const adj = document.getElementById('stockPhotoAdjust'); if (adj) adj.hidden = false;
+}
+function adjustCurrentStockPhoto() {
+  const p = document.getElementById('stockPhotoPreview');
+  const src = window._stockPhotoOriginal || p?.src;
+  if (!src || /blank\.gif/.test(src) || p?.style.display === 'none') return toast('A foto ainda está carregando. Tente de novo em instantes.', 'warn');
+  cropStockPhoto(src);
 }
 
 /* Foto do equipamento: escolhe o arquivo → ajusta o enquadramento → prévia no formulário */

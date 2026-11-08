@@ -337,7 +337,9 @@ function openStockModal(id, asEmpty = false) {
           <input type="file" id="stockPhotoInput" accept="image/*" onchange="onStockPhotoChange(event)">
           <div id="stockPhotoText">${item.photo ? '✓ Foto carregada — clique para trocar' : '📷 Clique para adicionar uma foto'}</div>
         </label>
-        <img id="stockPhotoPreview" class="file-preview" src="${safeImg(item.photo)}" style="${item.photo?'':'display:none;'}" alt="Prévia">
+        <img id="stockPhotoPreview" class="file-preview crop-preview-sq" src="${safeImg(item.photo)}" style="${item.photo?'':'display:none;'}" alt="Prévia">
+        <button type="button" class="btn small" id="stockPhotoAdjust" onclick="adjustCurrentStockPhoto()" ${item.photo ? '' : 'hidden'} style="margin-top:8px;">${icon('edit', 15)} Ajustar enquadramento</button>
+        <div class="field-help">Depois de escolher a foto, você ajusta o enquadramento e pode girá-la.</div>
       </div>
       <div class="field">
         <label for="stLocation">Localização <span class="req">*</span></label>
@@ -408,7 +410,7 @@ function openStockModal(id, asEmpty = false) {
     </div>
   `;
   openModal(html, true);
-  window._stockPhotoData = item.photo || null;
+  window._stockPhotoData = item.photo || null; window._stockPhotoOriginal = null;
   setStockKind(id ? isEmptySpot(item) : asEmpty);
 
   if (item.advisee && !students.find(s => s.name === item.advisee)) {
@@ -442,12 +444,10 @@ function onStockAdviseeChange() {
 function onStockPhotoChange(e) {
   const file = e.target.files[0];
   if (!file) return;
-  fileToDataURL(file, 900, 0.78).then(dataUrl => {
-    window._stockPhotoData = dataUrl;
-    document.getElementById('stockPhotoPreview').src = dataUrl;
-    document.getElementById('stockPhotoPreview').style.display = 'block';
-    document.getElementById('stockPhotoText').textContent = '✓ Foto carregada — clique para trocar';
-    document.getElementById('stockPhotoLabel').classList.add('has-file');
+  e.target.value = '';   // permite escolher o mesmo arquivo de novo
+  fileToDataURL(file, 2000, 0.9).then(dataUrl => {
+    window._stockPhotoOriginal = dataUrl;
+    cropStockPhoto(dataUrl);
   }).catch(err => toast(err.message, 'error'));
 }
 
@@ -471,7 +471,7 @@ async function saveStock(id) {
     if (id) Object.assign(getStockItem(id), data);
     else window.db.stock.push({ id: uid('stk'), ...data, addedBy: u.id, addedAt: Date.now() });
     saveDB();
-    window._stockPhotoData = null;
+    window._stockPhotoData = null; window._stockPhotoOriginal = null;
     closeModal();
     toast(`${location} registrado como vazio.`, 'success');
     return renderStock();
@@ -527,7 +527,7 @@ async function saveStock(id) {
     });
   }
   saveDB();
-  window._stockPhotoData = null;
+  window._stockPhotoData = null; window._stockPhotoOriginal = null;
   closeModal();
   toast((id ? 'Material atualizado.' : 'Material cadastrado.') + (freed.length ? ` ${location} deixou de constar como vazio.` : ''), 'success');
   renderStock();

@@ -31,6 +31,9 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.8.1 (08/11/2026) — enquadramento também no estoque
+- Fotos do Estoque de materiais passam pelo mesmo ajuste (arrastar, aproximar, girar, foto inteira), em formato quadrado 1000×1000 — o mesmo das miniaturas do estoque. Botão "Ajustar enquadramento" no cadastro. A área de ajuste limita a altura a ~55% da tela.
+
 ### v11.8 (07/11/2026) — enquadramento das fotos dos equipamentos
 - Ao escolher a foto de um equipamento abre o ajuste de enquadramento (arrastar, aproximar com controle/roda/pinça, girar 90°, "foto inteira" com fundo branco). Resultado em JPG 1200×800 (3:2), o mesmo formato do cartão do catálogo, que agora tem proporção fixa 3:2. Botão "Ajustar enquadramento" para reenquadrar fotos já cadastradas. Código em `js/cropper.js`.
 
