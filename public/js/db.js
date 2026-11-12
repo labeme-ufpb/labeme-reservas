@@ -191,6 +191,7 @@ function sanitizeDoc(c, d) {
     if (d.maxDays != null) d.maxDays = Math.max(1, Math.min(90, parseInt(d.maxDays, 10) || 7));
     d.name = String(d.name || '');
     if (d.calibrationDue != null && !_ISO.test(d.calibrationDue)) delete d.calibrationDue;
+    if (d.videoId != null && !/^[A-Za-z0-9_-]{11}$/.test(d.videoId)) delete d.videoId;
   } else if (c === 'maintenance') {
     if (!isSafeId(d.resourceId) || !['problema', 'manutencao', 'calibracao', 'outro'].includes(d.kind) || !_ISO.test(d.date || '')) return null;
     d.status = d.status === 'aberto' ? 'aberto' : 'resolvido';

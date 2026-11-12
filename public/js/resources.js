@@ -91,6 +91,30 @@ const onCatSearch = debounce(v => {
 function setCatFilter(k, v) { catFilters[k] = v; renderResources(); }
 function clearCatFilters() { catSearch = ''; catFilters = { group: 'all', location: 'all' }; renderResources(); }
 
+/* Vídeo explicativo de uso do equipamento (YouTube do laboratório) */
+function equipVideoHtml(r) {
+  const id = r.videoId && /^[A-Za-z0-9_-]{11}$/.test(r.videoId) ? r.videoId : null;
+  if (!id) {
+    return `<div class="field"><span class="label">Vídeo: como usar</span>
+      <div class="video-empty">${icon('play', 18)} <span>Vídeo explicativo em preparação.</span>
+      ${isAdmin() ? `<button class="btn small" onclick="openResourceModal('${r.id}')">Adicionar link</button>` : ''}</div></div>`;
+  }
+  return `<div class="field"><span class="label">Vídeo: como usar</span>
+    <div class="video-box" id="vid_${r.id}">
+      <button type="button" class="video-thumb" onclick="playEquipVideo('${r.id}')" aria-label="Assistir ao vídeo explicativo">
+        <img src="${ytThumb(id)}" alt="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin">
+        <span class="video-play">${icon('play', 30)}</span>
+      </button>
+    </div>
+    <a class="small" href="${ytWatch(id)}" target="_blank" rel="noopener noreferrer">Abrir no YouTube</a></div>`;
+}
+function playEquipVideo(rid) {
+  const r = getResource(rid); const box = document.getElementById('vid_' + rid);
+  if (!r || !box || !/^[A-Za-z0-9_-]{11}$/.test(r.videoId || '')) return;
+  box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${r.videoId}?autoplay=1&rel=0&modestbranding=1" title="Vídeo explicativo: ${escapeHtml(r.name)}"
+    allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+}
+
 function showResourceDetail(id) {
   const r = getResource(id); if (!r) return;
   const img = safeImg(r.photo);
@@ -118,6 +142,7 @@ function showResourceDetail(id) {
       </dl>
       ${r.description ? `<p>${escapeHtml(r.description)}</p>` : ''}
       ${rules.length ? `<ul class="rule-list">${rules.map(x => `<li>${icon('alert', 14)} ${x}</li>`).join('')}</ul>` : ''}
+      ${equipVideoHtml(r)}
       <div class="field"><span class="label">Próximas reservas</span>
         ${next.length ? next.map(x => `<div class="occ-row"><span>${fmtDateShort(x.date)}${isMultiDay(x) ? '–' + fmtDateShort(resEnd(x)) : ''}</span><span class="mono">${slotText(x)}</span>${isTechnician() ? `<span class="small">${escapeHtml(shortName(userName(x.userId), 2))}</span>` : ''}${statusPill(x.status)}</div>`).join('') : '<div class="small muted">Nenhuma reserva futura.</div>'}
         ${(() => { const fila = waitlistForResource(r.id); return fila.length ? `<div class="small muted" style="margin-top:6px;">${icon('clock', 13)} ${fila.length} pessoa(s) na lista de espera${isTechnician() ? ': ' + fila.map(w => escapeHtml(shortName(userName(w.userId), 2)) + ' (' + fmtDateShort(w.date) + ')').join(', ') : ''}</div>` : ''; })()}

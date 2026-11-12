@@ -5,7 +5,7 @@
 /* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
    Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
    recarrega uma vez buscando a página atualizada. */
-const APP_BUILD = '11.8.1';
+const APP_BUILD = '11.9';
 (function checkBuild() {
   try {
     if (window.APP_BUILD === APP_BUILD) {
@@ -245,6 +245,29 @@ function safeImg(src) {
   if (/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[\w.\-]+\/o\/[^"'<>\s]+$/.test(src)) return src;
   return '';
 }
+/* Normas de uso: respeita as quebras de linha; linhas que começam com "-" ou "•" viram tópicos */
+function rulesHtml(text) {
+  const blocks = []; let list = null;
+  String(text || '').split(/\r?\n/).forEach(raw => {
+    const line = raw.trim();
+    const m = line.match(/^[-•*]\s*(.+)$/);
+    if (m) { if (!list) { list = []; blocks.push(list); } list.push(m[1]); return; }
+    list = null;
+    if (line) blocks.push(line);
+  });
+  return blocks.map(b => Array.isArray(b) ? `<ul>${b.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : `<p>${escapeHtml(b)}</p>`).join('');
+}
+
+/* Vídeos explicativos (YouTube): guarda só o ID de 11 caracteres; aceita os formatos de link comuns */
+function youtubeId(url) {
+  const s = String(url || '').trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/|v\/)|youtube-nocookie\.com\/embed\/|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/i);
+  return m ? m[1] : null;
+}
+function ytThumb(id) { return /^[A-Za-z0-9_-]{11}$/.test(id || '') ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : ''; }
+function ytWatch(id) { return `https://www.youtube.com/watch?v=${id}`; }
+
 // IDs vindos de backup importado são validados antes de entrar no sistema
 function isSafeId(id) { return typeof id === 'string' && /^[A-Za-z0-9_\-]{1,64}$/.test(id); }
 

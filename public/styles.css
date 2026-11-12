@@ -2629,3 +2629,27 @@ body.nav-compact .nav-user-name { overflow: hidden; text-overflow: ellipsis; whi
 /* v11.8.1 · prévia quadrada da foto do estoque */
 .file-preview.crop-preview-sq { aspect-ratio: 1 / 1; object-fit: cover; width: 100%; max-width: 220px; height: auto; max-height: none; }
 .crop-stage { margin-left: auto !important; margin-right: auto !important; }
+
+/* ---------- v11.9 · Vídeos explicativos e normas com quebras de linha ---------- */
+.rules-text { font-size: 13px; color: var(--gray-700); line-height: 1.6; }
+.rules-text p { margin: 0 0 6px; }
+.rules-text ul { margin: 0 0 6px; padding-left: 20px; }
+.rules-text li { margin: 2px 0; }
+.video-box { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; margin-bottom: 6px; }
+.video-box iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video-thumb { all: unset; cursor: pointer; display: block; position: absolute; inset: 0; }
+.video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+.video-thumb:hover img, .video-thumb:focus-visible img { transform: scale(1.03); }
+.video-thumb:focus-visible { outline: 3px solid var(--labeme-gold, #e8aa28); outline-offset: -3px; }
+.video-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%;
+  background: rgba(220, 30, 30, .92); color: #fff; display: grid; place-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+.video-play svg { margin-left: 4px; fill: currentColor; }
+.video-empty { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px dashed var(--line-200); border-radius: 10px; color: var(--gray-500, #6b7280); font-size: 14px; }
+.video-prev img { margin-top: 8px; width: 220px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; display: block; }
+.video-row { display: grid; grid-template-columns: 96px 1fr minmax(220px, 360px); gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line-100); }
+.video-row:last-child { border-bottom: 0; }
+.video-row-thumb { width: 96px; aspect-ratio: 16 / 9; border-radius: 6px; background: var(--gray-100); display: grid; place-items: center; overflow: hidden; color: var(--gray-500, #6b7280); }
+.video-row-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.video-row-main { display: grid; gap: 2px; min-width: 0; }
+.video-row-input.invalid { border-color: var(--danger); }
+@media (max-width: 720px) { .video-row { grid-template-columns: 72px 1fr; } .video-row-thumb { width: 72px; } .video-row-input { grid-column: 1 / -1; } }

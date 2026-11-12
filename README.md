@@ -31,6 +31,11 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.9 (12/11/2026) — vídeos explicativos e normas formatadas
+- Ficha do equipamento (e página aberta pelo QR code) ganhou o espaço "Vídeo: como usar": miniatura do YouTube; ao tocar, o vídeo toca ali mesmo (youtube-nocookie) ou abre no YouTube. Sem vídeo, aparece "em preparação".
+- Coordenação → Configurações → "Vídeos explicativos dos equipamentos": colar o link de cada equipamento, com miniatura na hora; também em Recursos → Editar. Guarda só o ID do vídeo (`resources.videoId`, validado nas regras). CSP liberada para i.ytimg.com e youtube-nocookie.com.
+- Normas de uso no cadastro respeitam as quebras de linha; linhas com "-" viram tópicos. Prévia ao editar em Configurações.
+
 ### v11.8.1 (08/11/2026) — enquadramento também no estoque
 - Fotos do Estoque de materiais passam pelo mesmo ajuste (arrastar, aproximar, girar, foto inteira), em formato quadrado 1000×1000 — o mesmo das miniaturas do estoque. Botão "Ajustar enquadramento" no cadastro. A área de ajuste limita a altura a ~55% da tela.
 

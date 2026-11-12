@@ -46,7 +46,7 @@ function setAuthTab(tab) {
   document.getElementById('signupForm').hidden = tab !== 'signup';
   if (tab === 'signup') {
     const rules = document.getElementById('suRulesText');
-    if (rules) rules.textContent = window.db.settings.labRules || '';
+    if (rules) rules.innerHTML = rulesHtml(window.db.settings.labRules || '');
   }
 }
 

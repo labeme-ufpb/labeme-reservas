@@ -145,6 +145,11 @@ function openResourceModal(id) {
         <div class="field"><label for="rActive">Visibilidade</label><select id="rActive">
           <option value="true" ${r.active ? 'selected' : ''}>Ativo</option><option value="false" ${!r.active ? 'selected' : ''}>Inativo (inservível / baixado)</option></select></div>
       </div>
+      <div class="section-label" style="margin-top:14px;">Vídeo explicativo</div>
+      <div class="field"><label for="rVideo">Link do vídeo no YouTube</label>
+        <input type="url" id="rVideo" value="${r.videoId ? ytWatch(r.videoId) : ''}" placeholder="https://youtu.be/…" oninput="previewVideoLink(this.value, 'rVideoPrev')">
+        <div class="field-help">Aparece na ficha do equipamento (e ao escanear o QR code). Pode ser vídeo não listado.</div>
+        <div id="rVideoPrev" class="video-prev">${r.videoId ? `<img src="${ytThumb(r.videoId)}" alt="Miniatura do vídeo">` : ''}</div></div>
       <div class="section-label" style="margin-top:14px;">Calibração</div>
       <div class="field-row">
         <div class="field"><label for="rCalEvery">Periodicidade (meses)</label><input type="number" id="rCalEvery" min="1" max="120" value="${r.calibrationEveryMonths || ''}" placeholder="Ex.: 12 (vazio = não controla)"></div>
@@ -166,6 +171,7 @@ function onResourcePhotoChange(e) {
 }
 function saveResource(id) {
   const v = x => document.getElementById(x).value.trim();
+  if (v('rVideo') && !youtubeId(v('rVideo'))) return toast('Link do vídeo não reconhecido. Use o link do YouTube (ou deixe em branco).', 'error');
   const data = {
     name: v('rName'), description: v('rDesc'), location: v('rLocation'),
     group: v('rGroupSel') === '__new__' ? v('rGroupNew') : v('rGroupSel'), model: v('rModel'),
@@ -178,6 +184,7 @@ function saveResource(id) {
     allowMultiDay: document.getElementById('rMultiDay').checked,
     maxDays: Math.min(90, Math.max(2, parseInt(v('rMaxDays'), 10) || 7)),
     photo: window._resourcePhotoData || null,
+    videoId: youtubeId(v('rVideo')) || null,
     calibrationEveryMonths: Math.min(120, Math.max(1, parseInt(v('rCalEvery'), 10) || 0)) || null,
     calibrationDue: /^\d{4}-\d{2}-\d{2}$/.test(v('rCalDue')) ? v('rCalDue') : null
   };
@@ -505,13 +512,57 @@ function adminSettings() {
       <label class="checkbox-field"><input type="checkbox" id="setWeekends" ${s.allowWeekends ? 'checked' : ''}><div class="cf-text"><strong>Permitir reservas aos sábados e domingos</strong></div></label>
       <div class="field mt-4"><label for="setClosed">Feriados e recessos (um por linha, AAAA-MM-DD)</label>
         <textarea id="setClosed" rows="4" placeholder="2026-11-20&#10;2026-12-24">${escapeHtml((s.closedDates || []).join('\n'))}</textarea></div>
-      <div class="field"><label for="setRules">Normas de uso (exibidas no cadastro)</label><textarea id="setRules" rows="4">${escapeHtml(s.labRules || '')}</textarea></div>
+      <div class="field"><label for="setRules">Normas de uso (exibidas no cadastro)</label><textarea id="setRules" rows="9" oninput="document.getElementById('setRulesPrev').innerHTML = rulesHtml(this.value)">${escapeHtml(s.labRules || '')}</textarea>
+        <div class="field-help">Use Enter para separar parágrafos. Linhas que começam com "-" aparecem como tópicos. Prévia de como fica no cadastro:</div>
+        <div class="rules-box"><div id="setRulesPrev" class="rules-text">${rulesHtml(s.labRules || '')}</div></div></div>
       <div class="field-row">
         <div class="field"><label for="setAdminEmail">E-mail de contato do laboratório</label><input type="email" id="setAdminEmail" value="${escapeHtml(s.adminEmail || '')}"></div>
         <div class="field"><label class="checkbox-field" style="margin-top:22px;"><input type="checkbox" id="setNotify" ${s.notifyInApp ? 'checked' : ''}><div class="cf-text"><strong>Avisar usuários por mensagem interna</strong>Aprovações, recusas, cancelamentos e devoluções.</div></label></div>
       </div>
       <button class="btn dark" onclick="saveSettings()">Salvar regras</button>
-    </div>`)}`;
+    </div>`)}
+    <div style="height:16px"></div>
+    ${adminVideoSettings()}`;
+}
+
+/* Vídeos explicativos: link do YouTube de cada equipamento (aparece na ficha / QR code) */
+let videoFilter = '';
+function adminVideoSettings() {
+  const all = window.db.resources.filter(r => r.active !== false);
+  const withVid = all.filter(r => r.videoId).length;
+  return panel('Vídeos explicativos dos equipamentos', `${withVid} de ${all.length} equipamentos com vídeo. Cole o link do YouTube do laboratório; a miniatura aparece na ficha do equipamento e ao escanear o QR code.`, `
+    <div class="panel-body">
+      <div class="input-icon" style="max-width:420px;margin-bottom:12px;">${icon('search', 16)}<input type="search" id="vidFilter" placeholder="Filtrar equipamentos" value="${escapeHtml(videoFilter)}" oninput="videoFilter=this.value;renderVideoRows()"></div>
+      <div id="videoRows">${videoRowsHtml()}</div>
+    </div>`);
+}
+function videoRowsHtml() {
+  const t = normalizeTxt(videoFilter);
+  const list = window.db.resources.filter(r => r.active !== false && (!t || normalizeTxt([r.name, r.group, r.location].join(' ')).includes(t)))
+    .sort((a, b) => (a.group || '').localeCompare(b.group || '', 'pt-BR') || a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
+  if (!list.length) return '<div class="small muted">Nenhum equipamento encontrado.</div>';
+  return list.map(r => `<div class="video-row">
+      <div class="video-row-thumb" id="vthumb_${r.id}">${r.videoId ? `<img src="${ytThumb(r.videoId)}" alt="">` : icon('play', 18)}</div>
+      <div class="video-row-main"><strong>${escapeHtml(r.name)}</strong><span class="small muted">${escapeHtml([r.group, r.location].filter(Boolean).join(' · '))}</span></div>
+      <input type="url" class="video-row-input" value="${r.videoId ? ytWatch(r.videoId) : ''}" placeholder="https://youtu.be/…" aria-label="Link do vídeo: ${escapeHtml(r.name)}" onchange="saveEquipVideo('${r.id}', this)">
+    </div>`).join('');
+}
+function renderVideoRows() { const el = document.getElementById('videoRows'); if (el) el.innerHTML = videoRowsHtml(); }
+function saveEquipVideo(rid, input) {
+  const r = getResource(rid); if (!r || !isAdmin()) return;
+  const raw = input.value.trim();
+  const id = raw ? youtubeId(raw) : null;
+  if (raw && !id) { input.classList.add('invalid'); return toast('Link do YouTube não reconhecido. Use o link de compartilhar do vídeo.', 'error'); }
+  input.classList.remove('invalid');
+  r.videoId = id; if (id) input.value = ytWatch(id);
+  saveDB();
+  const th = document.getElementById('vthumb_' + rid); if (th) th.innerHTML = id ? `<img src="${ytThumb(id)}" alt="">` : icon('play', 18);
+  toast(id ? `Vídeo salvo: ${r.name}.` : `Vídeo removido: ${r.name}.`, 'success');
+}
+function previewVideoLink(val, boxId) {
+  const box = document.getElementById(boxId); if (!box) return;
+  const id = youtubeId(val);
+  box.innerHTML = id ? `<img src="${ytThumb(id)}" alt="Miniatura do vídeo">` : (val.trim() ? '<span class="small" style="color:var(--danger)">Link do YouTube não reconhecido.</span>' : '');
 }
 function saveAutoApproveSettings() {
   window.db.settings.autoApproveCategories = [...document.querySelectorAll('.auto-approve-cat')].filter(c => c.checked).map(c => c.dataset.cat);
