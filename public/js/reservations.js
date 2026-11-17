@@ -408,6 +408,7 @@ function submitReservation() {
 function createReservation({ u, r, date, endDate, mode, slot, quantity, range, purpose, purposeType, project = '' }) {
   const me = currentUser(); if (!me) return 'Entre no sistema.';
   const onBehalf = u.id !== me.id;
+  if (!onBehalf && profileMissing(me).length) { setTimeout(showProfileGate, 50); return 'Complete seu cadastro antes de reservar.'; }
   if (!r) return 'Escolha o equipamento ou espaço.';
   if (!purposeType) return 'Escolha o tipo de atividade.';
   if (!purpose || purpose.length < 10) return 'Descreva o uso (mínimo 10 caracteres).';

@@ -5,7 +5,7 @@
 /* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
    Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
    recarrega uma vez buscando a página atualizada. */
-const APP_BUILD = '11.9';
+const APP_BUILD = '11.10';
 (function checkBuild() {
   try {
     if (window.APP_BUILD === APP_BUILD) {
@@ -34,6 +34,23 @@ const CATEGORY_ORDER = ['graduacao','graduacao_vinculo','mestrado','doutorado','
 const STAFF_ONLY_CATEGORIES = ['graduacao_vinculo'];
 const STUDENT_CATEGORIES = ['graduacao','graduacao_vinculo','mestrado','doutorado'];
 const EXTERNAL_CATEGORIES = ['prof_externo','externo'];
+// Vínculos que a própria pessoa pode escolher (no cadastro ou ao completar um cadastro sem vínculo)
+const SELF_CATEGORIES = ['graduacao','mestrado','doutorado','prof_depto','prof_externo','tecnico','externo'];
+/* WhatsApp: DDD + número (10 ou 11 dígitos); aceita +55 e números de outros países (até 13 dígitos) */
+function phoneDigits(p) { return String(p || '').replace(/\D/g, ''); }
+function validPhone(p) { const d = phoneDigits(p); return d.length >= 10 && d.length <= 13; }
+/* O que falta no cadastro de um usuário comum (lista vazia = cadastro completo).
+   A coordenação e a equipe técnica não passam por esta verificação. */
+function profileMissing(u) {
+  if (!u || u.role !== 'user') return [];
+  const miss = [];
+  if (String(u.name || '').trim().split(/\s+/).length < 2) miss.push('nome completo');
+  if (!validPhone(u.phone)) miss.push('WhatsApp');
+  if (!u.category) miss.push('vínculo');
+  if (STUDENT_CATEGORIES.includes(u.category) && !String(u.advisor || '').trim()) miss.push('orientador(a)');
+  if (EXTERNAL_CATEGORIES.includes(u.category) && !String(u.institution || '').trim()) miss.push('instituição');
+  return miss;
+}
 
 const TURNO_LABELS = { manha: 'Manhã', tarde: 'Tarde' };
 

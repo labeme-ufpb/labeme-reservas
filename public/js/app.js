@@ -89,13 +89,24 @@ async function ensureOwnProfile(fbUser) {
     : { name: (fbUser.email || 'Usuário').split('@')[0], email: (fbUser.email || '').toLowerCase(), phone: '', category: '', advisor: '', institution: '',
         role: 'user', active: true, avatar: null, profileReminderShown: false, createdAt: Date.now(), incomplete: true };
   window._signupProfile = null;
+  // O perfil é gravado ANTES da foto: as regras só aceitam fotos de quem já tem perfil.
+  // (Até a v11.9 a foto ia primeiro, era recusada e o cadastro se perdia: a conta ficava sem vínculo,
+  //  orientador, instituição e WhatsApp.)
+  const avatar = p.avatar; p.avatar = null;
   await writeDocNow('users', Object.assign({ id: fbUser.uid }, p));
+  if (avatar && /^data:image\//.test(avatar)) {
+    try {
+      const ref = await storePhoto(avatar);
+      await fb.fs.collection('users').doc(fbUser.uid).update({ avatar: ref, profileReminderShown: true });
+    } catch (e) { console.warn('Foto do cadastro não gravada:', e); }   // sem foto: o lembrete pede depois
+  }
   return true;
 }
 
 let _bootDone = false;
 async function onAuthChanged(fbUser) {
   if (!fbUser) {
+    if (typeof closeProfileGate === 'function') closeProfileGate();
     stopSync();
     const settings = window.db.settings;
     window.db = emptyDB(); window.db.settings = settings;
@@ -129,7 +140,8 @@ async function onAuthChanged(fbUser) {
     if (equip) openEquipFromLink(equip);          // veio pelo QR code do equipamento
     else showView(target, { push: _bootDone });
     _annShown.clear(); _wlShown.clear();
-    setTimeout(() => {
+    if (profileMissing(u).length) { closeModal(); showProfileGate(); }   // cadastro incompleto: completar antes de usar
+    else setTimeout(() => {
       checkAnnouncements();   // avisos da coordenação têm prioridade
       if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder();
     }, 500);

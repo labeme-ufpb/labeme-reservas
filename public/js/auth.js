@@ -93,9 +93,11 @@ async function doSignup(ev) {
   const pwd = document.getElementById('suPwd').value, pwdConfirm = document.getElementById('suPwdConfirm').value;
   const accepted = document.getElementById('suAcceptRules').checked;
 
-  if (!name || !email || !category || !pwd) return toast('Preencha todos os campos obrigatórios.', 'error');
+  if (!name || !email || !phone || !category || !pwd) return toast('Preencha todos os campos obrigatórios (*).', 'error');
   if (name.split(/\s+/).length < 2) return toast('Informe nome e sobrenome.', 'error');
   if (!validEmail(email)) return toast('E-mail inválido.', 'error');
+  if (!validPhone(phone)) return toast('Informe o WhatsApp com DDD, por exemplo (83) 99999-9999.', 'error');
+  if (!SELF_CATEGORIES.includes(category)) return toast('Selecione o seu vínculo.', 'error');
   const prob = passwordProblem(pwd); if (prob) return toast(prob, 'error');
   if (pwd !== pwdConfirm) return toast('As senhas não coincidem.', 'error');
   if (STUDENT_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');

@@ -253,7 +253,7 @@ function adminUsers() {
         const role = (u.role === 'admin' ? '<span class="pill approved">Coordenação</span>' : u.role === 'technician' ? '<span class="pill completed">Técnico</span>' : 'Usuário') + (u.active === false ? ' <span class="pill denied">Desativado</span>' : '');
         return `<tr class="clickable ${u.active === false ? 'row-muted' : ''}" onclick="openUserModal('${u.id}')">
         <td class="col-av">${renderAvatar(u, 'small')}</td>
-        <td class="col-name"><strong>${escapeHtml(u.name)}</strong><div class="small muted">${escapeHtml(u.email)}</div><div class="users-mobile-meta">${role}</div></td>
+        <td class="col-name"><strong>${escapeHtml(u.name)}</strong>${profileMissing(u).length ? ` <span class="pill pending" title="Falta: ${escapeHtml(profileMissing(u).join(', '))}">Cadastro incompleto</span>` : ''}<div class="small muted">${escapeHtml(u.email)}</div><div class="users-mobile-meta">${role}</div></td>
         <td class="col-cat"><span class="pill auto">${escapeHtml(CATEGORY_LABELS[u.category] || '—')}</span></td>
         <td class="col-role">${role}</td>
         <td class="col-adv small">${escapeHtml(u.advisor || u.institution || '—')}</td>

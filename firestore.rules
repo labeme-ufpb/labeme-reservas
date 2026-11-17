@@ -73,7 +73,12 @@ service cloud.firestore {
                             && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly(['name', 'advisor', 'institution', 'avatar', 'profileReminderShown',
                                          'lastLoginAt', 'rulesAcceptedAt', 'incomplete', 'seenAnnouncements',
-                                         'email', 'phone'])));
+                                         'email', 'phone', 'category'])
+                            // vínculo: só quem ainda não tem um (cadastro incompleto) e sem "Graduação com vínculo"
+                            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category'])
+                                || (resource.data.get('category', '') == ''
+                                    && request.resource.data.category in ['graduacao', 'mestrado', 'doutorado', 'prof_depto',
+                                                                          'prof_externo', 'tecnico', 'externo']))));
       allow delete: if isAdmin();
     }
 

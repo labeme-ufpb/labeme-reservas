@@ -19,7 +19,7 @@ function unseenAnnouncements(u = currentUser()) {
   return activeAnnouncements().filter(a => !seen.has(a.id)).reverse();   // mais antigo primeiro
 }
 const _annShown = new Set();   // já exibidos nesta sessão (fechou sem "Entendi" → volta no próximo login)
-function modalIsOpen() { return document.getElementById('modalOverlay')?.classList.contains('show'); }
+function modalIsOpen() { return document.getElementById('modalOverlay')?.classList.contains('show') || !!document.getElementById('profileGate'); }
 
 /* Mostra os avisos ainda não vistos (chamado ao entrar e quando chegam dados novos) */
 function checkAnnouncements() {

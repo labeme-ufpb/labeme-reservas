@@ -59,7 +59,7 @@ function renderProfile() {
               <div class="field"><label>Nome completo</label>
                 <input type="text" id="pfName" value="${escapeHtml(u.name)}">
               </div>
-              <div class="field"><label>WhatsApp</label>
+              <div class="field"><label>WhatsApp${u.role === 'user' ? ' <span class="req">*</span>' : ''}</label>
                 <input type="tel" id="pfPhone" value="${escapeHtml(u.phone||'')}" placeholder="(83) 9XXXX-XXXX">
               </div>
             </div>
@@ -134,13 +134,16 @@ function saveProfile() {
   const name = document.getElementById('pfName').value.trim();
   if (!name) return toast('Nome não pode ficar em branco.', 'error');
 
-  u.name = name;
-  u.phone = document.getElementById('pfPhone').value.trim();
-
+  const phone = document.getElementById('pfPhone').value.trim();
+  if (u.role === 'user' && !validPhone(phone)) return toast('Informe o WhatsApp com DDD, por exemplo (83) 99999-9999.', 'error');
   const advField = document.getElementById('pfAdvisor');
-  if (advField) u.advisor = advField.value.trim();
-
+  if (advField && u.role === 'user' && !advField.value.trim()) return toast('Informe o(a) orientador(a).', 'error');
   const instField = document.getElementById('pfInstitution');
+  if (instField && u.role === 'user' && !instField.value.trim()) return toast('Informe a instituição.', 'error');
+
+  u.name = name;
+  u.phone = phone;
+  if (advField) u.advisor = advField.value.trim();
   if (instField) u.institution = instField.value.trim();
   delete u.incomplete;
 
@@ -174,3 +177,81 @@ async function changePassword() {
   toast('Senha alterada com sucesso.', 'success');
 }
 
+
+/* ============================================================
+   Cadastro incompleto (v11.10): tela obrigatória por cima de tudo.
+   Acontece com contas antigas sem WhatsApp e com contas cujo perfil
+   não foi gravado no cadastro (ex.: a página fechou logo depois de
+   criar a conta) e por isso ficaram sem vínculo/orientador.
+   ============================================================ */
+function profileGateOpen() { return !!document.getElementById('profileGate'); }
+function showProfileGate() {
+  const u = currentUser(); if (!u || profileGateOpen()) return;
+  const needCat = !u.category;
+  const gate = document.createElement('div');
+  gate.id = 'profileGate'; gate.className = 'profile-gate';
+  gate.setAttribute('role', 'dialog'); gate.setAttribute('aria-modal', 'true'); gate.setAttribute('aria-labelledby', 'pgTitle');
+  gate.innerHTML = `
+    <div class="profile-gate-box">
+      <img src="assets/labeme-logo.png" alt="LABEME" class="profile-gate-logo">
+      <div class="modal-title" id="pgTitle">Complete seu cadastro</div>
+      <div class="modal-sub">Para usar o sistema, precisamos destes dados. A equipe técnica usa o WhatsApp para falar com você sobre as suas reservas.</div>
+      <div class="field"><label for="pgName">Nome completo <span class="req">*</span></label><input type="text" id="pgName" value="${escapeHtml(u.name || '')}" autocomplete="name"></div>
+      <div class="field"><label for="pgPhone">WhatsApp <span class="req">*</span></label><input type="tel" id="pgPhone" value="${escapeHtml(u.phone || '')}" placeholder="(83) 9XXXX-XXXX" autocomplete="tel" inputmode="tel"></div>
+      ${needCat ? `<div class="field"><label for="pgCategory">Vínculo <span class="req">*</span></label>
+        <select id="pgCategory" onchange="onGateCategoryChange()"><option value="">Selecione…</option>
+          ${SELF_CATEGORIES.map(k => `<option value="${k}">${escapeHtml(CATEGORY_LABELS[k])}</option>`).join('')}</select></div>`
+        : `<div class="field"><label>Vínculo</label><input type="text" value="${escapeHtml(CATEGORY_LABELS[u.category] || '')}" disabled></div>`}
+      <div class="field" id="pgAdvisorField" ${STUDENT_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgAdvisor">Orientador(a) <span class="req">*</span></label><input type="text" id="pgAdvisor" value="${escapeHtml(u.advisor || '')}" placeholder="Prof. Dr. …"></div>
+      <div class="field" id="pgInstitutionField" ${EXTERNAL_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgInstitution">Instituição de origem <span class="req">*</span></label><input type="text" id="pgInstitution" value="${escapeHtml(u.institution || '')}"></div>
+      <div class="profile-gate-foot">
+        <button type="button" class="btn" onclick="doLogout()">Sair</button>
+        <button type="button" class="btn dark" id="pgSave" onclick="submitProfileGate()">${icon('check', 16)} Salvar e continuar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(gate);
+  document.body.classList.add('modal-open');
+  setTimeout(() => gate.querySelector('input:not([disabled]),select')?.focus(), 30);
+}
+function onGateCategoryChange() {
+  const cat = document.getElementById('pgCategory')?.value || '';
+  document.getElementById('pgAdvisorField').hidden = !STUDENT_CATEGORIES.includes(cat);
+  document.getElementById('pgInstitutionField').hidden = !EXTERNAL_CATEGORIES.includes(cat);
+}
+function closeProfileGate() {
+  document.getElementById('profileGate')?.remove();
+  if (!document.getElementById('modalOverlay')?.classList.contains('show')) document.body.classList.remove('modal-open');
+}
+async function submitProfileGate() {
+  const u = currentUser(); if (!u) return;
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const name = val('pgName'), phone = val('pgPhone');
+  const category = u.category || val('pgCategory');
+  const advisor = val('pgAdvisor'), institution = val('pgInstitution');
+  if (name.split(/\s+/).length < 2) return toast('Informe nome e sobrenome.', 'error');
+  if (!validPhone(phone)) return toast('Informe o WhatsApp com DDD, por exemplo (83) 99999-9999.', 'error');
+  if (!category) return toast('Selecione o seu vínculo.', 'error');
+  if (!u.category && !SELF_CATEGORIES.includes(category)) return toast('Selecione o seu vínculo.', 'error');
+  if (STUDENT_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
+  if (EXTERNAL_CATEGORIES.includes(category) && !institution) return toast('Informe a instituição.', 'error');
+  const prev = { name: u.name, phone: u.phone, category: u.category, advisor: u.advisor, institution: u.institution, incomplete: u.incomplete };
+  Object.assign(u, { name, phone, category });
+  if (STUDENT_CATEGORIES.includes(category)) u.advisor = advisor;
+  if (EXTERNAL_CATEGORIES.includes(category)) u.institution = institution;
+  delete u.incomplete;
+  const btn = document.getElementById('pgSave'); if (btn) btn.disabled = true;
+  try {
+    await writeDocNow('users', u);
+  } catch (e) {
+    console.error(e);
+    Object.assign(u, prev); if (prev.incomplete === undefined) delete u.incomplete;
+    if (btn) btn.disabled = false;
+    return toast('Não foi possível salvar. Verifique a internet e tente de novo.', 'error');
+  }
+  closeProfileGate();
+  refreshAuthUI();
+  toast('Cadastro completo. Obrigado!', 'success');
+  if (currentView === 'profile' || currentView === 'auth') showView(homeViewFor(u));
+  else if (typeof refreshCurrentView === 'function') refreshCurrentView();
+  setTimeout(() => { checkAnnouncements(); if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder(); }, 400);
+}

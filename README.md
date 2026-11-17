@@ -31,6 +31,13 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.10 (17/11/2026) — cadastro com foto corrigido e dados obrigatórios
+- **Correção:** no cadastro com foto de perfil, a foto era gravada antes do perfil e as regras a recusavam (só aceitam fotos de quem já tem perfil). O cadastro inteiro se perdia e, no acesso seguinte, a conta era criada vazia — sem vínculo, orientador, instituição, WhatsApp nem aceite das normas. Agora o perfil é gravado primeiro e a foto em seguida.
+- WhatsApp obrigatório no cadastro e no perfil (DDD + número; aceita +55 e números estrangeiros).
+- Tela obrigatória "Complete seu cadastro" ao entrar, para usuários comuns com dados faltando (nome e sobrenome, WhatsApp, vínculo, orientador para estudantes, instituição para externos). Não fecha com Esc nem clicando fora; só "Salvar e continuar" ou "Sair". Reservas ficam bloqueadas até completar. Coordenação e equipe técnica não passam por ela.
+- Regras: o próprio usuário só escolhe o vínculo se a conta ainda não tiver um (nunca "Graduação com vínculo"); depois disso, só a coordenação altera.
+- Coordenação → Usuários: etiqueta "Cadastro incompleto", com o que falta ao passar o mouse.
+
 ### v11.9 (12/11/2026) — vídeos explicativos e normas formatadas
 - Ficha do equipamento (e página aberta pelo QR code) ganhou o espaço "Vídeo: como usar": miniatura do YouTube; ao tocar, o vídeo toca ali mesmo (youtube-nocookie) ou abre no YouTube. Sem vídeo, aparece "em preparação".
 - Coordenação → Configurações → "Vídeos explicativos dos equipamentos": colar o link de cada equipamento, com miniatura na hora; também em Recursos → Editar. Guarda só o ID do vídeo (`resources.videoId`, validado nas regras). CSP liberada para i.ytimg.com e youtube-nocookie.com.

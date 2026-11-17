@@ -2653,3 +2653,12 @@ body.nav-compact .nav-user-name { overflow: hidden; text-overflow: ellipsis; whi
 .video-row-main { display: grid; gap: 2px; min-width: 0; }
 .video-row-input.invalid { border-color: var(--danger); }
 @media (max-width: 720px) { .video-row { grid-template-columns: 72px 1fr; } .video-row-thumb { width: 72px; } .video-row-input { grid-column: 1 / -1; } }
+
+/* ---------- Cadastro incompleto: tela obrigatória (v11.10) ---------- */
+.profile-gate { position: fixed; inset: 0; z-index: 140; background: rgba(9, 24, 46, .78); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.profile-gate-box { width: 100%; max-width: 480px; background: var(--surface, #fff); border-radius: 16px; padding: 24px 24px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+.profile-gate-logo { height: 40px; display: block; margin: 0 auto 14px; }
+.profile-gate-box .modal-title { text-align: center; }
+.profile-gate-box .modal-sub { text-align: center; margin: 4px 0 16px; }
+.profile-gate-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; }
+@media (max-width: 520px) { .profile-gate { padding: 8px; align-items: start; } .profile-gate-box { padding: 20px 16px 16px; } }
