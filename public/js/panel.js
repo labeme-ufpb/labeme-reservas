@@ -4,15 +4,12 @@
    Abre em …/#painel com qualquer conta ativa (recomendado: uma conta
    só para o painel). Atualiza sozinho: os dados chegam em tempo real
    pelo Firestore, a lista é refeita a cada 30 s e o relógio a cada 1 s.
-   Mostra só o primeiro nome e a inicial do sobrenome de quem reservou.
+   Mostra o nome completo de quem reservou.
    ============================================================ */
 
 let _panelTick = null, _panelClock = null, _panelWake = null, _panelReloadAt = 0;
 
-function panelName(id) {
-  const w = String(userName(id) || '').trim().split(/\s+/).filter(x => x && !NAME_LINKS.test(x));
-  return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : (w[0] || '—');
-}
+function panelName(id) { return String(userName(id) || '').trim() || '—'; }   // nome completo (decisão da coordenação, 19/11)
 
 /* Tudo o que acontece hoje: reservas confirmadas e horários fixos das salas */
 function panelItemsToday() {

@@ -2727,7 +2727,7 @@ body.view-painel { background: #08213b; overflow: hidden; }
 .pp-tl:last-child { border-bottom: 0; }
 .pp-tl-time { font-weight: 700; color: var(--pp-gold); font-variant-numeric: tabular-nums; }
 .pp-tl-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pp-tl-who { color: rgba(255,255,255,.7); font-size: .9em; white-space: nowrap; }
+.pp-tl-who { color: rgba(255,255,255,.7); font-size: .9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22em; }
 .pp-tl.is-fixed .pp-tl-time { color: #c9d2dc; }
 .pp-empty { color: rgba(255,255,255,.75); padding: .6em 0; font-size: 1.05em; }
 .pp-empty-sub { color: rgba(255,255,255,.6); font-size: .9em; }
