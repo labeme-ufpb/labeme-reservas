@@ -143,6 +143,7 @@ function showResourceDetail(id) {
       ${r.description ? `<p>${escapeHtml(r.description)}</p>` : ''}
       ${rules.length ? `<ul class="rule-list">${rules.map(x => `<li>${icon('alert', 14)} ${x}</li>`).join('')}</ul>` : ''}
       ${equipVideoHtml(r)}
+      ${fixedBlocksDetailHtml(r)}
       <div class="field"><span class="label">Próximas reservas</span>
         ${next.length ? next.map(x => `<div class="occ-row"><span>${fmtDateShort(x.date)}${isMultiDay(x) ? '–' + fmtDateShort(resEnd(x)) : ''}</span><span class="mono">${slotText(x)}</span>${isTechnician() ? `<span class="small">${escapeHtml(shortName(userName(x.userId), 2))}</span>` : ''}${statusPill(x.status)}</div>`).join('') : '<div class="small muted">Nenhuma reserva futura.</div>'}
         ${(() => { const fila = waitlistForResource(r.id); return fila.length ? `<div class="small muted" style="margin-top:6px;">${icon('clock', 13)} ${fila.length} pessoa(s) na lista de espera${isTechnician() ? ': ' + fila.map(w => escapeHtml(shortName(userName(w.userId), 2)) + ' (' + fmtDateShort(w.date) + ')').join(', ') : ''}</div>` : ''; })()}

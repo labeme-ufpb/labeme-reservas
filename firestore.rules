@@ -120,6 +120,7 @@ service cloud.firestore {
         && photoOk(d.get('photo', null))
         && optStr(d, 'description', 2000) && optStr(d, 'location', 200) && optStr(d, 'group', 100)
         && (d.get('videoId', null) == null || (d.get('videoId', null) is string && d.get('videoId', null).matches('^[A-Za-z0-9_-]{11}$')))
+        && (d.get('fixedBlocks', []) is list && d.get('fixedBlocks', []).size() <= 40)
         && (d.get('calibrationDue', null) == null || isDate(d.get('calibrationDue', null)))
         && (d.get('lastCalibration', null) == null || isDate(d.get('lastCalibration', null)))
         && (d.get('calibrationEveryMonths', null) == null

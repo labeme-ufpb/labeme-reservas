@@ -145,6 +145,7 @@ function openResourceModal(id) {
         <div class="field"><label for="rActive">Visibilidade</label><select id="rActive">
           <option value="true" ${r.active ? 'selected' : ''}>Ativo</option><option value="false" ${!r.active ? 'selected' : ''}>Inativo (inservível / baixado)</option></select></div>
       </div>
+      ${fixedBlocksEditorHtml(r)}
       <div class="section-label" style="margin-top:14px;">Vídeo explicativo</div>
       <div class="field"><label for="rVideo">Link do vídeo no YouTube</label>
         <input type="url" id="rVideo" value="${r.videoId ? ytWatch(r.videoId) : ''}" placeholder="https://youtu.be/…" oninput="previewVideoLink(this.value, 'rVideoPrev')">
@@ -160,6 +161,8 @@ function openResourceModal(id) {
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="saveResource('${id || ''}')">Salvar</button></div>`, true);
   document.getElementById('rMultiDay').addEventListener('change', e => { document.getElementById('rMaxDaysField').hidden = !e.target.checked; });
+  document.getElementById('rType').addEventListener('change', e => { document.getElementById('rFixedSection').hidden = e.target.value !== 'space'; });
+  renderFixedDraft();
 }
 function onResourcePhotoChange(e) {
   const file = e.target.files[0]; if (!file) return;
@@ -169,7 +172,7 @@ function onResourcePhotoChange(e) {
     cropResourcePhoto(d);
   }).catch(err => toast(err.message, 'error'));
 }
-function saveResource(id) {
+async function saveResource(id) {
   const v = x => document.getElementById(x).value.trim();
   if (v('rVideo') && !youtubeId(v('rVideo'))) return toast('Link do vídeo não reconhecido. Use o link do YouTube (ou deixe em branco).', 'error');
   const data = {
@@ -186,7 +189,8 @@ function saveResource(id) {
     photo: window._resourcePhotoData || null,
     videoId: youtubeId(v('rVideo')) || null,
     calibrationEveryMonths: Math.min(120, Math.max(1, parseInt(v('rCalEvery'), 10) || 0)) || null,
-    calibrationDue: /^\d{4}-\d{2}-\d{2}$/.test(v('rCalDue')) ? v('rCalDue') : null
+    calibrationDue: /^\d{4}-\d{2}-\d{2}$/.test(v('rCalDue')) ? v('rCalDue') : null,
+    fixedBlocks: v('rType') === 'space' ? cleanFixedBlocks(_fixedDraft) : []
   };
   if (!data.name) return toast('Informe o nome.', 'error');
   if (!data.group) return toast(document.getElementById('rGroupSel').value === '__new__' ? 'Digite o nome do novo grupo.' : 'Escolha o grupo do equipamento.', 'error');
@@ -196,13 +200,18 @@ function saveResource(id) {
   if (target && ((target.status !== 'maintenance' && data.status === 'maintenance') || (target.active && !data.active))) {
     cancelled = cancelFutureReservationsOf(id, data.status === 'maintenance' ? 'Equipamento entrou em manutenção' : 'Recurso retirado de uso');
   }
+  const saved = target || { id: uid('r'), ...data, createdAt: Date.now() };
   if (target) Object.assign(target, data);
-  else window.db.resources.push({ id: uid('r'), ...data, createdAt: Date.now() });
+  else window.db.resources.push(saved);
   if (!saveDB()) return;
   window._resourcePhotoData = null; window._resourcePhotoOriginal = null;
   closeModal();
   toast(cancelled ? `Salvo — ${cancelled} reserva(s) futura(s) cancelada(s) e usuários avisados.` : 'Recurso salvo.', cancelled ? 'warn' : 'success');
   refreshCurrentView();
+  if (saved.fixedBlocks?.length && saved.active && saved.status !== 'maintenance') {   // reservas que já estavam nesses horários
+    const n = await resolveFixedConflicts(saved);
+    if (n) { toast(`${n} reserva(s) em horário fixo cancelada(s) e usuários avisados.`, 'warn'); refreshCurrentView(); }
+  }
 }
 function cancelFutureReservationsOf(resourceId, reason) {
   let n = 0;

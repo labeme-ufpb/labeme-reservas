@@ -2,8 +2,8 @@
    app.js — Roteamento (com #hash), navegação móvel e inicialização (v10)
    ============================================================ */
 
-const VIEWS = ['calendar','resources','stock','myres','messages','tech','admin','profile','auth'];
-const PROTECTED = { myres: 'user', profile: 'user', messages: 'user', stock: 'user', tech: 'tech', admin: 'admin' };
+const VIEWS = ['calendar','resources','stock','myres','messages','tech','admin','profile','auth','painel'];
+const PROTECTED = { myres: 'user', profile: 'user', messages: 'user', stock: 'user', tech: 'tech', admin: 'admin', painel: 'user' };
 let currentView = 'calendar';
 
 function showView(name, { push = true } = {}) {
@@ -17,6 +17,7 @@ function showView(name, { push = true } = {}) {
   else if (need === 'tech' && !isTechnician()) { toast('Acesso restrito à equipe técnica.', 'warn'); name = 'calendar'; }
   else if (need === 'admin' && !isAdmin()) { toast('Acesso restrito à coordenação.', 'warn'); name = 'calendar'; }
 
+  if (name !== 'painel' && typeof stopPanelTimers === 'function') stopPanelTimers();
   currentView = name;
   VIEWS.forEach(v => document.body.classList.toggle('view-' + v, v === name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
@@ -28,7 +29,7 @@ function showView(name, { push = true } = {}) {
   closeMobileNav();
   if (push && location.hash !== '#' + name) { try { history.pushState(null, '', '#' + name); } catch (_) {} }
   renderView(name);
-  const titles = { calendar: 'Calendário', resources: 'Equipamentos', stock: 'Estoque', myres: 'Minhas reservas', messages: 'Mensagens', tech: 'Painel técnico', admin: 'Coordenação', profile: 'Meu perfil', auth: 'Bem-vindo' };
+  const titles = { calendar: 'Calendário', resources: 'Equipamentos', stock: 'Estoque', myres: 'Minhas reservas', messages: 'Mensagens', tech: 'Painel técnico', admin: 'Coordenação', profile: 'Meu perfil', auth: 'Bem-vindo', painel: 'Hoje no LABEME' };
   document.title = `${titles[name]} · LABEME Reservas`;
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
@@ -36,7 +37,7 @@ function showView(name, { push = true } = {}) {
 function renderView(name) {
   ({
     calendar: renderCalendar, resources: renderResources, stock: renderStock, myres: renderMyReservations,
-    messages: renderMessages, tech: renderTechDashboard, admin: renderAdmin, profile: renderProfile,
+    messages: renderMessages, tech: renderTechDashboard, admin: renderAdmin, profile: renderProfile, painel: renderPanel,
     auth: () => setAuthTab('login')
   })[name]?.();
 }
@@ -47,8 +48,9 @@ function refreshCurrentView() {
 // Chamado quando outra aba altera os dados
 function onExternalDataChange() {
   if (!document.getElementById('modalOverlay').classList.contains('show')) {
-    const typing = document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
-    if (!typing) refreshCurrentView(); else updateNavBadges();
+    const el = document.activeElement;   // só conta como digitando se o campo estiver visível
+    const typing = el && ['INPUT','TEXTAREA'].includes(el.tagName) && el.offsetParent !== null;
+    if (!typing || currentView === 'painel') refreshCurrentView(); else updateNavBadges();
   } else updateNavBadges();
   checkAnnouncements();   // aviso publicado enquanto o usuário está com o sistema aberto
 }
@@ -107,6 +109,8 @@ let _bootDone = false;
 async function onAuthChanged(fbUser) {
   if (!fbUser) {
     if (typeof closeProfileGate === 'function') closeProfileGate();
+    // link direto para uma tela (ex.: …/#painel na TV): abre depois de entrar
+    { const h = (location.hash || '').slice(1); if (!_bootDone && VIEWS.includes(h) && h !== 'auth') window._afterLogin = h; }
     stopSync();
     const settings = window.db.settings;
     window.db = emptyDB(); window.db.settings = settings;
@@ -140,7 +144,8 @@ async function onAuthChanged(fbUser) {
     if (equip) openEquipFromLink(equip);          // veio pelo QR code do equipamento
     else showView(target, { push: _bootDone });
     _annShown.clear(); _wlShown.clear();
-    if (profileMissing(u).length) { closeModal(); showProfileGate(); }   // cadastro incompleto: completar antes de usar
+    if (currentView === 'painel') { /* modo TV: sem janelas por cima do painel */ }
+    else if (profileMissing(u).length) { closeModal(); showProfileGate(); }   // cadastro incompleto: completar antes de usar
     else setTimeout(() => {
       checkAnnouncements();   // avisos da coordenação têm prioridade
       if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder();

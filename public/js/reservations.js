@@ -369,7 +369,12 @@ function updateAvailability() {
     .sort((a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start));
   const dayHtml = dayList.length ? `<div class="day-occupancy"><div class="small muted">${multi ? 'Já reservado no período:' : 'Já reservado neste dia:'}</div>${dayList.map(x =>
     `<div class="occ-row"><span class="mono">${multi || isMultiDay(x) ? fmtDateShort(x.date) + ' · ' : ''}${slotText(x)}</span><span>${escapeHtml(shortName(userName(x.userId), 2))}${x.quantity > 1 ? ' · ' + x.quantity + ' un.' : ''}</span>${statusPill(x.status)}</div>`).join('')}</div>` : '';
-  if (problem) { mount.innerHTML = `<div class="info-box danger">${icon('alert', 16)} ${escapeHtml(problem)}</div>${dayHtml}`; return; }
+  const fixedToday = multi ? [] : fixedBlocksOn(f.r, f.date);
+  const fixedHtml = fixedToday.length ? `<div class="day-occupancy"><div class="small muted">Horários fixos neste dia:</div>${fixedToday.map(b =>
+    `<div class="occ-row"><span class="mono">${b.start}–${b.end}</span><span>${escapeHtml(b.label)}</span><span class="pill fixed">Fixo</span></div>`).join('')}</div>` : '';
+  if (problem) { mount.innerHTML = `<div class="info-box danger">${icon('alert', 16)} ${escapeHtml(problem)}</div>${fixedHtml}${dayHtml}`; return; }
+  const fixed = fixedBlockConflict(f.r, f.date, multi ? f.endDate : f.date, f.range);
+  if (fixed) { mount.innerHTML = `<div class="info-box danger">${icon('lock', 16)} <div><strong>Indisponível:</strong> ${escapeHtml(fixed.block.label)} — horário fixo (${WEEKDAY_LONG[isoWeekday(fixed.date)]}, ${fixed.block.start}–${fixed.block.end}${multi ? ', ' + fmtDateShort(fixed.date) : ''}).</div></div>${fixedHtml}${dayHtml}`; return; }
 
   const total = f.r.totalQuantity || 1;
   const available = total - (multi ? reservedQuantityInSpan(f.r.id, f.date, f.endDate, f.range) : reservedQuantityIn(f.r.id, f.date, f.range));
@@ -379,7 +384,7 @@ function updateAvailability() {
   else text = (total > 1 ? `<strong>${available} de ${total}</strong> unidade(s) livre(s) neste período.` : `<strong>Disponível</strong> neste período.`)
     + (multi ? ` <span class="small">(${daySpan(f.date, f.endDate).length} dia(s): ${fmtDateShort(f.date)} a ${fmtDateShort(f.endDate)})</span>` : '');
   const wl = cls !== 'success' ? waitlistHintHtml(f) : '';
-  mount.innerHTML = `<div class="info-box ${cls}">${icon(cls === 'success' ? 'check' : 'alert', 16)} <div>${text}${wl}</div></div>${dayHtml}`;
+  mount.innerHTML = `<div class="info-box ${cls}">${icon(cls === 'success' ? 'check' : 'alert', 16)} <div>${text}${wl}</div></div>${fixedHtml}${dayHtml}`;
 }
 
 function submitReservation() {
@@ -419,6 +424,8 @@ function createReservation({ u, r, date, endDate, mode, slot, quantity, range, p
   endDate = multi ? endDate : date;
   const problem = multi ? daysProblem(date, endDate, r) : (dateProblem(date) || rangeProblem(date, range));
   if (problem) return problem;
+  const fixed = fixedBlockConflict(r, date, endDate, range);
+  if (fixed) return fixedConflictMessage(fixed);
   const limit = window.db.settings.maxActivePerUser || 0;
   if (limit && !isTechnician() && activeFutureCount(u.id) >= limit) return `Você já tem ${limit} reservas futuras ativas (limite do laboratório).`;
   const total = r.totalQuantity || 1;
@@ -522,13 +529,13 @@ const HISTORY_LABELS = {
   created: 'Solicitação criada', created_by_staff: 'Registrada pela equipe em nome do usuário', auto_approved: 'Aprovada automaticamente', approved: 'Aprovada', denied: 'Recusada',
   cancelled: 'Cancelada', check_in: 'Uso iniciado', completed: 'Uso concluído', return_sent: 'Foto de devolução enviada',
   return_confirmed: 'Devolução conferida', return_rejected: 'Pendência na devolução', auto_completed: 'Concluída automaticamente',
-  auto_expired: 'Expirada sem análise', maintenance_cancel: 'Cancelada — recurso em manutenção'
+  auto_expired: 'Expirada sem análise', maintenance_cancel: 'Cancelada — recurso em manutenção', fixed_cancel: 'Cancelada — horário fixo do espaço'
 };
 
-function showDayDetail(iso, events) {
+function showDayDetail(iso, events, fixed = fixedEventsOn(iso)) {
   openModal(`
     <div class="modal-head">
-      <div><div class="modal-title">${fmtDateLong(iso)}</div><div class="modal-sub">${events.length} reserva(s)</div></div>
+      <div><div class="modal-title">${fmtDateLong(iso)}</div><div class="modal-sub">${events.length} reserva(s)${fixed.length ? ` · ${fixed.length} horário(s) fixo(s)` : ''}</div></div>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button>
     </div>
     <div class="modal-body">
@@ -539,6 +546,7 @@ function showDayDetail(iso, events) {
             <span class="small muted">${slotText(e)} · ${escapeHtml(userName(e.userId))}</span>
           </div>${statusPill(e.status)}
         </button>`).join('')}
+      ${fixed.map(fixedRowHtml).join('')}
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal()">Fechar</button>

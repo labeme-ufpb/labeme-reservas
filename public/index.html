@@ -144,12 +144,18 @@
 <section class="view" id="view-tech" aria-labelledby="h-tech">
   <div class="page-head"><div class="page-head-inner">
     <div class="eyebrow">Equipe técnica</div><h1 id="h-tech">Painel técnico</h1><p>Aprove solicitações, registre início e fim de uso e confira devoluções.</p>
+    <button class="btn page-head-btn" onclick="openPanelWindow()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8M12 17.5V21"/></svg> Painel ao vivo (TV)</button>
   </div></div>
   <main>
     <div class="stats-row" id="techStats"></div>
     <div class="tabs" role="tablist" id="techTabs"></div>
     <div id="techContent"></div>
   </main>
+</section>
+
+<!-- ============ PAINEL AO VIVO (TV) ============ -->
+<section class="view" id="view-painel" aria-label="Hoje no LABEME — painel ao vivo">
+  <div class="pp" id="panelMount"></div>
 </section>
 
 <!-- ============ BOAS-VINDAS / LOGIN / CADASTRO ============ -->
@@ -269,7 +275,7 @@
 
 
 <!-- Firebase (SDK 10.14.1, cópia local) -->
-<script>window.APP_BUILD = '11.10';</script>
+<script>window.APP_BUILD = '11.11';</script>
 <script src="js/vendor/firebase-app-compat.js"></script>
 <script src="js/vendor/firebase-auth-compat.js"></script>
 <script src="js/vendor/firebase-firestore-compat.js"></script>
@@ -284,6 +290,7 @@
 <script src="js/auth.js"></script>
 <script src="js/password-reset.js"></script>
 <script src="js/reservations.js"></script>
+<script src="js/schedule.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/resources.js"></script>
 <script src="js/profile.js"></script>
@@ -293,6 +300,7 @@
 <script src="js/maintenance.js"></script>
 <script src="js/waitlist.js"></script>
 <script src="js/qr.js"></script>
+<script src="js/panel.js"></script>
 <script src="js/cropper.js"></script>
 <script src="js/stock.js"></script>
 <script src="js/admin.js"></script>

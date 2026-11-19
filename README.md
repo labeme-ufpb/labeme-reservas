@@ -31,6 +31,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.11 (19/11/2026) — horários fixos nas salas e painel ao vivo
+- **Horários fixos (aulas):** em Coordenação → Recursos → Editar, recursos do tipo "Espaço" ganham a seção "Horários fixos". Marque os dias da semana, início, término, descrição (ex.: "Aula — Materiais II") e o período de validade (ex.: o semestre). Esses horários ficam bloqueados: aparecem na agenda (listrados, com cadeado), na ficha do espaço e na disponibilidade da nova reserva, e ninguém consegue reservar por cima. Ao salvar, se já houver reservas nesses horários, o sistema lista e pergunta se deve cancelá-las e avisar os usuários. Guardado em `resources.fixedBlocks` (até 40 por espaço).
+- **Painel ao vivo "Hoje no LABEME"** (`…/#painel`), para TV ou monitor: relógio, o que está em uso agora, próximos usos do dia, salas livres/ocupadas, equipamentos em manutenção, avisos da coordenação e QR code do sistema. Atualiza sozinho em tempo real, mantém a tela acesa quando o navegador permite e recarrega de madrugada para pegar versões novas. Mostra só o primeiro nome e a inicial do sobrenome. Botão "Painel ao vivo (TV)" no Painel técnico. Funciona com qualquer conta ativa — recomendado criar uma conta só para a TV.
+- Link direto para uma tela (ex.: `#painel`) abre essa tela depois do login.
+- Correção: dados novos chegando de outro aparelho não atualizavam a tela logo após o login (o campo de senha escondido continuava "em foco").
+
 ### v11.10 (17/11/2026) — cadastro com foto corrigido e dados obrigatórios
 - **Correção:** no cadastro com foto de perfil, a foto era gravada antes do perfil e as regras a recusavam (só aceitam fotos de quem já tem perfil). O cadastro inteiro se perdia e, no acesso seguinte, a conta era criada vazia — sem vínculo, orientador, instituição, WhatsApp nem aceite das normas. Agora o perfil é gravado primeiro e a foto em seguida.
 - WhatsApp obrigatório no cadastro e no perfil (DDD + número; aceita +55 e números estrangeiros).

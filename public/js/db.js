@@ -192,6 +192,7 @@ function sanitizeDoc(c, d) {
     d.name = String(d.name || '');
     if (d.calibrationDue != null && !_ISO.test(d.calibrationDue)) delete d.calibrationDue;
     if (d.videoId != null && !/^[A-Za-z0-9_-]{11}$/.test(d.videoId)) delete d.videoId;
+    if (d.fixedBlocks != null) d.fixedBlocks = typeof cleanFixedBlocks === 'function' ? cleanFixedBlocks(d.fixedBlocks) : [];
   } else if (c === 'maintenance') {
     if (!isSafeId(d.resourceId) || !['problema', 'manutencao', 'calibracao', 'outro'].includes(d.kind) || !_ISO.test(d.date || '')) return null;
     d.status = d.status === 'aberto' ? 'aberto' : 'resolvido';

@@ -23,7 +23,7 @@ function modalIsOpen() { return document.getElementById('modalOverlay')?.classLi
 
 /* Mostra os avisos ainda não vistos (chamado ao entrar e quando chegam dados novos) */
 function checkAnnouncements() {
-  if (!currentUser() || modalIsOpen() || currentView === 'auth') return;
+  if (!currentUser() || modalIsOpen() || currentView === 'auth' || currentView === 'painel') return;
   const list = unseenAnnouncements().filter(a => !_annShown.has(a.id));
   if (list.length) showAnnouncementPopup(list.map(a => a.id), 0);
   else if (typeof checkWaitlistOffers === 'function') checkWaitlistOffers();   // depois dos avisos: vaga liberada na lista de espera

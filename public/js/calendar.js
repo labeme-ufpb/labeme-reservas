@@ -99,7 +99,7 @@ function renderCalendarToolbar() {
     </div>
     <div class="cal-legend" aria-label="Legenda">
       <span><i class="ev-approved"></i>Aprovada</span><span><i class="ev-pending"></i>Pendente</span>
-      <span><i class="ev-inuse"></i>Em uso</span><span><i class="ev-done"></i>Encerrada</span>
+      <span><i class="ev-inuse"></i>Em uso</span><span><i class="ev-done"></i>Encerrada</span><span><i class="ev-fixed"></i>Horário fixo</span>
     </div>`;
   ['month','week','agenda'].forEach(v => {
     const b = document.getElementById('calBtn-' + v);
@@ -162,14 +162,16 @@ function renderMonthGrid() {
     const iso = localISO(new Date(year, month, d));
     const closed = (!s.allowWeekends && isWeekendISO(iso)) || (s.closedDates || []).includes(iso);
     const past = iso < today;
-    const events = eventsOn(iso);
-    const evHtml = events.slice(0, 3).map(r => `<div class="day-event ${eventClassFor(r)}" title="${escapeHtml(resourceName(r.resourceId))} · ${slotText(r)}">${escapeHtml(resourceName(r.resourceId))}</div>`).join('');
-    const more = events.length > 3 ? `<div class="day-more">+${events.length - 3} mais</div>` : '';
-    const label = `${d} — ${events.length} reserva(s)${closed ? ', laboratório fechado' : ''}`;
+    const events = eventsOn(iso), fixed = closed ? [] : fixedEventsOn(iso);
+    const items = fixed.map(f => `<div class="day-event ev-fixed" title="${escapeHtml(f.r.name)} · ${f.b.start}–${f.b.end} · ${escapeHtml(f.b.label)}">${icon('lock', 11)} ${escapeHtml(f.r.name)}</div>`)
+      .concat(events.map(r => `<div class="day-event ${eventClassFor(r)}" title="${escapeHtml(resourceName(r.resourceId))} · ${slotText(r)}">${escapeHtml(resourceName(r.resourceId))}</div>`));
+    const evHtml = items.slice(0, 3).join('');
+    const more = items.length > 3 ? `<div class="day-more">+${items.length - 3} mais</div>` : '';
+    const label = `${d} — ${events.length} reserva(s)${fixed.length ? `, ${fixed.length} horário(s) fixo(s)` : ''}${closed ? ', laboratório fechado' : ''}`;
     cells += `<div class="day-cell ${iso === today ? 'today' : ''} ${closed ? 'weekend' : ''} ${past ? 'past' : ''}" role="button" tabindex="0" aria-label="${label}"
       onclick="onDayClick('${iso}')" onkeydown="if(event.key==='Enter')onDayClick('${iso}')">
       <div class="day-num">${d}</div>
-      ${events.length ? `<span class="day-dot-count">${events.length}</span>` : ''}
+      ${events.length + fixed.length ? `<span class="day-dot-count">${events.length + fixed.length}</span>` : ''}
       <div class="day-events">${evHtml}${more}</div>
     </div>`;
   }
@@ -212,9 +214,11 @@ function renderWeekGrid() {
     days.forEach(d => {
       const iso = localISO(d);
       const events = eventsOn(iso).filter(r => rangesOverlap(reservationRange(r), slot));
-      const ev = events.slice(0, 2).map(r => `<button class="week-event ${eventClassFor(r)}" onclick="event.stopPropagation();showResDetail('${r.id}')">
+      const fx = fixedEventsOn(iso).filter(f => rangesOverlap(f.b, slot));
+      const fxHtml = fx.slice(0, 2).map(f => `<div class="week-event ev-fixed" title="${escapeHtml(f.b.label)}"><strong>${icon('lock', 11)} ${escapeHtml(f.r.name)}</strong><small>${f.b.start}–${f.b.end} · ${escapeHtml(f.b.label)}</small></div>`).join('');
+      const ev = fxHtml + events.slice(0, Math.max(0, 2 - fx.length)).map(r => `<button class="week-event ${eventClassFor(r)}" onclick="event.stopPropagation();showResDetail('${r.id}')">
           <strong>${escapeHtml(resourceName(r.resourceId))}${r.quantity > 1 ? ` ×${r.quantity}` : ''}</strong><small>${escapeHtml(shortName(userName(r.userId), 2))}</small></button>`).join('');
-      const more = events.length > 2 ? `<button class="week-more" onclick="event.stopPropagation();showDayDetail('${iso}', eventsOn('${iso}'))">+${events.length - 2}</button>` : '';
+      const more = events.length + fx.length > 2 ? `<button class="week-more" onclick="event.stopPropagation();showDayDetail('${iso}', eventsOn('${iso}'))">+${events.length + fx.length - 2}</button>` : '';
       body += `<div class="week-slot ${gap ? 'gap' : ''} ${iso < today ? 'past' : ''}" role="button" tabindex="0" aria-label="${fmtDateShort(iso)} ${slot.start} às ${slot.end}"
         onclick="onSlotClick('${iso}','${slot.start}','${slot.end}')" onkeydown="if(event.key==='Enter')onSlotClick('${iso}','${slot.start}','${slot.end}')">${ev}${more}</div>`;
     });
@@ -227,21 +231,21 @@ function renderAgenda() {
   const days = [];
   for (let i = 0; i < 14; i++) {
     const iso = addDaysISO(start, i);
-    const ev = eventsOn(iso);
-    if (ev.length) days.push([iso, ev]);
+    const ev = eventsOn(iso), fx = fixedEventsOn(iso);
+    if (ev.length || fx.length) days.push([iso, ev, fx]);
   }
   if (!days.length) return `<div class="panel"><div class="empty">${icon('calendar', 28)}<div>${calOnlyMine ? 'Você não tem reservas' : 'Nenhuma reserva'} nos próximos 14 dias${activeResourceFilter !== 'all' ? ' para este equipamento' : ''}.</div>
     <div class="flex-row" style="justify-content:center;">${calOnlyMine ? `<button class="btn mt-4" onclick="toggleOnlyMine(false)">Ver reservas de todos</button>` : ''}<button class="btn dark mt-4" onclick="openReserveModal()">${icon('plus', 16)} Nova reserva</button></div></div></div>`;
-  return days.map(([iso, ev]) => `
+  return days.map(([iso, ev, fx]) => `
     <section class="agenda-day">
       <h3>${fmtDateLong(iso)}${iso === todayISO() ? ' <span class="pill auto">Hoje</span>' : ''}</h3>
-      <div class="res-list">${ev.map(r => reservationRow(r, { showUser: true })).join('')}</div>
+      <div class="res-list">${fx.map(fixedRowHtml).join('')}${ev.map(r => reservationRow(r, { showUser: true })).join('')}</div>
     </section>`).join('') + `<div class="center mt-4"><button class="btn" onclick="navCal(1)">Próximos dias ${icon('arrowRight', 16)}</button></div>`;
 }
 
 function onDayClick(iso) {
   const events = eventsOn(iso);
-  if (events.length) return showDayDetail(iso, events);
+  if (events.length || fixedEventsOn(iso).length) return showDayDetail(iso, events);
   const prob = dateProblem(iso);
   if (prob && iso >= todayISO()) return toast(prob, 'warn');
   if (iso < todayISO()) return;
@@ -249,7 +253,8 @@ function onDayClick(iso) {
 }
 function onSlotClick(iso, start, end) {
   const events = eventsOn(iso).filter(r => rangesOverlap(reservationRange(r), { start, end }));
-  if (events.length) return showDayDetail(iso, events);
+  const fx = fixedEventsOn(iso).filter(f => rangesOverlap(f.b, { start, end }));
+  if (events.length || fx.length) return showDayDetail(iso, events, fx);
   if (iso < todayISO()) return;
   const prob = dateProblem(iso); if (prob) return toast(prob, 'warn');
   openReserveModal({ date: iso, startTime: start, endTime: end, resourceId: activeResourceFilter !== 'all' ? activeResourceFilter : undefined });
