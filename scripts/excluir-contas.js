@@ -9,9 +9,11 @@
      orfas-apagar  apaga essas contas sem perfil.
      autoteste     cria e apaga uma conta descartável, para conferir as permissões.
    O repositório é público e os registros do Actions também: nunca imprimir e-mails ou nomes. */
-const admin = require('firebase-admin');
-admin.initializeApp({ projectId: 'labeme-reservas' });
-const db = admin.firestore(), auth = admin.auth();
+const { initializeApp, applicationDefault } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getFirestore } = require('firebase-admin/firestore');
+initializeApp({ credential: applicationDefault(), projectId: 'labeme-reservas' });
+const db = getFirestore(), auth = getAuth();
 const MODE = (process.env.MODE || 'pedidos').trim();
 const DAY = 24 * 3600 * 1000;
 
@@ -64,7 +66,7 @@ async function selfTest() {
   const u = await auth.createUser({ email: `autoteste-${Date.now()}@example.invalid`, password: 'T' + Math.random().toString(36).slice(2) + '9x' });
   await auth.deleteUser(u.uid);
   const q = await db.collection('authDeletions').where('status', '==', 'pending').limit(1).get();
-  console.log(`Autoteste OK: criar/apagar conta de acesso e ler pedidos (${q.size >= 0 ? 'ok' : '?'})`);
+  console.log(`Autoteste OK: criar e apagar conta de acesso; leitura de pedidos (${q.size} pendente(s)).`);
 }
 
 (async () => {
