@@ -1,0 +1,41 @@
+# Apaga, no Firebase Authentication, as contas de acesso de usuários excluídos pela coordenação.
+# Roda a cada 10 minutos (o GitHub pode atrasar alguns minutos) e também manualmente (aba Actions → Run workflow).
+# Autenticação sem chave: a mesma conta de serviço da publicação (Workload Identity Federation).
+name: Excluir contas de acesso
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'pedidos | orfas-listar | orfas-apagar | autoteste'
+        required: false
+        default: pedidos
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: excluir-contas
+  cancel-in-progress: false
+jobs:
+  excluir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/37104463266/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deploy@labeme-reservas.iam.gserviceaccount.com
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Admin SDK
+        run: mkdir -p /tmp/fa && cd /tmp/fa && npm init -y >/dev/null && npm install --no-audit --no-fund firebase-admin@14.5.0 >/dev/null
+      - name: Excluir contas
+        env:
+          MODE: ${{ inputs.modo || 'pedidos' }}
+          NODE_PATH: /tmp/fa/node_modules
+        run: node scripts/excluir-contas.js

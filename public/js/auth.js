@@ -152,6 +152,7 @@ function showExistingAccountModal(email) {
       <p style="margin-top:12px;"><strong>Sabe a senha?</strong> Toque em <strong>Entrar</strong>.</p>
       <p><strong>Não sabe ou nunca criou uma senha?</strong> Receba um link por e-mail para criar a sua e depois entre normalmente.</p>
       <p class="small muted">Ao entrar, o sistema pede o que ainda estiver faltando no cadastro (WhatsApp, vínculo…).</p>
+      <p class="small muted">Se a coordenação excluiu sua conta há pouco, aguarde uns 15 minutos e tente criar a conta de novo.</p>
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="goToLoginWith('${escapeHtml(email)}')">Entrar</button>

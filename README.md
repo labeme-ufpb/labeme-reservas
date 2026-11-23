@@ -31,6 +31,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.13 (23/11/2026) — excluir usuário apaga também a conta de acesso
+- Ao excluir um usuário (Coordenação → Usuários → Excluir), o sistema apaga o perfil, o contato (e-mail/WhatsApp) e registra um pedido em `authDeletions/{uid}`.
+- O workflow **Excluir contas de acesso** (`.github/workflows/excluir-contas.yml`, a cada 10 min, grátis) apaga a conta no Firebase Authentication com o Admin SDK (`scripts/excluir-contas.js`), usando a mesma conta de serviço da publicação. Só apaga se o perfil não existir mais. Depois disso o e-mail pode ser cadastrado de novo, com qualquer senha.
+- Modos manuais (Actions → Excluir contas de acesso → Run workflow): `orfas-listar` / `orfas-apagar` (contas de acesso sem perfil, sem uso há 2+ dias), `autoteste`. Os registros do Actions são públicos: o script só imprime números.
+- Atenção: o GitHub pausa tarefas agendadas de repositórios públicos sem atividade por 60 dias (avisa por e-mail; reativar em Actions).
+
 ### v11.12 (23/11/2026) — "e-mail já cadastrado" para quem foi cadastrado pela coordenação
 - **Causa:** quando a coordenação usa "Cadastrar usuário", a conta de acesso (Firebase Authentication) já é criada. Se a pessoa depois tentava "Criar conta" com o mesmo e-mail, o Firebase recusava e o sistema só dizia "E-mail já cadastrado".
 - **Criar conta com e-mail que já tem conta:** o sistema tenta entrar com a senha digitada; se der certo, entra e completa o perfil com o que foi preenchido (só campos vazios — nada que a coordenação definiu é trocado). Se a senha não confere, explica que a conta já existe e oferece "Entrar" ou "Enviar link para criar senha". Também recria o perfil completo quando a conta de acesso existe mas o perfil foi excluído.

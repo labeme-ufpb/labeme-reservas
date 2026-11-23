@@ -421,17 +421,29 @@ async function deleteUser(id) {
   if (resList.length) {
     // Contas de teste: apaga também as reservas. Para contas reais, o certo é desativar (preserva o histórico).
     ans = await askConfirm({ title: 'Excluir usuário e reservas',
-      body: `<strong>${escapeHtml(u.name)}</strong> tem <strong>${resList.length} reserva(s)</strong> no histórico. Excluir a conta apaga também essas reservas e as mensagens trocadas com você — use só para contas de teste. Para quem já usou o laboratório, prefira <strong>Desativar conta</strong>.`,
+      body: `<strong>${escapeHtml(u.name)}</strong> tem <strong>${resList.length} reserva(s)</strong> no histórico. Excluir apaga o perfil, a conta de acesso (e-mail e senha), essas reservas e as mensagens trocadas com você — use só para contas de teste ou cadastros errados. Para quem já usou o laboratório, prefira <strong>Desativar conta</strong>.`,
       okLabel: `Excluir conta e ${resList.length} reserva(s)`, danger: true });
     if (!ans) return;
     window.db.reservations = window.db.reservations.filter(r => r.userId !== id);
     window.db.messages = window.db.messages.filter(m => m.fromUserId !== id && m.toUserId !== id);
   } else {
-    ans = await askConfirm({ title: 'Excluir usuário', body: `Excluir o cadastro de <strong>${escapeHtml(u.name)}</strong>? Para impedir o acesso de vez, prefira "Desativar conta".`, okLabel: 'Excluir', danger: true });
+    ans = await askConfirm({ title: 'Excluir usuário', body: `Excluir <strong>${escapeHtml(u.name)}</strong>? Apaga o perfil e a conta de acesso (e-mail e senha): a pessoa poderá se cadastrar de novo com o mesmo e-mail. Para só impedir o acesso, prefira "Desativar conta".`, okLabel: 'Excluir', danger: true });
     if (!ans) return;
   }
   window.db.users = window.db.users.filter(x => x.id !== id);
-  saveDB(); closeModal(); toast('Usuário excluído.', 'warn'); renderAdmin();
+  saveDB(); closeModal(); renderAdmin();
+  // v11.13: apaga também o contato (e-mail/WhatsApp) e pede a exclusão da conta de acesso,
+  // feita pelo GitHub Actions a cada ~10 min (o navegador não pode apagar a conta de outra pessoa)
+  try {
+    await fb.fs.collection('users').doc(id).delete();
+    await fb.fs.collection('contacts').doc(id).delete();
+    _sync.contacts?.delete(id);
+    await fb.fs.collection('authDeletions').doc(id).set({ requestedAt: Date.now(), requestedBy: currentUser().id, status: 'pending' });
+    toast('Usuário excluído. A conta de acesso (e-mail e senha) é apagada automaticamente em até 15 minutos; depois disso o e-mail pode ser cadastrado de novo.', 'warn');
+  } catch (e) {
+    console.error(e);
+    toast('Perfil excluído, mas não foi possível pedir a exclusão da conta de acesso. Verifique a internet e exclua de novo, ou apague em Firebase → Authentication.', 'error');
+  }
 }
 
 /* ---------------- Todas as reservas ---------------- */
