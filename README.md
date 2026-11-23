@@ -31,6 +31,13 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.12 (23/11/2026) — "e-mail já cadastrado" para quem foi cadastrado pela coordenação
+- **Causa:** quando a coordenação usa "Cadastrar usuário", a conta de acesso (Firebase Authentication) já é criada. Se a pessoa depois tentava "Criar conta" com o mesmo e-mail, o Firebase recusava e o sistema só dizia "E-mail já cadastrado".
+- **Criar conta com e-mail que já tem conta:** o sistema tenta entrar com a senha digitada; se der certo, entra e completa o perfil com o que foi preenchido (só campos vazios — nada que a coordenação definiu é trocado). Se a senha não confere, explica que a conta já existe e oferece "Entrar" ou "Enviar link para criar senha". Também recria o perfil completo quando a conta de acesso existe mas o perfil foi excluído.
+- **Cadastrar usuário (coordenação):** por padrão a pessoa recebe um e-mail para criar a própria senha (o sistema gera uma senha aleatória provisória); continua possível definir a senha inicial. Ao final, aviso para orientar a pessoa a usar "Entrar", não "Criar conta". Mensagem clara quando o e-mail já tem conta de acesso (ex.: perfil excluído antes).
+- Tela "Complete seu cadastro": pede o aceite das normas quando a conta ainda não tem (ex.: contas criadas pela coordenação).
+- Aba "Criar conta": lembrete "Já tem conta, ou a coordenação já cadastrou você? Entrar".
+
 ### v11.11.1 (19/11/2026)
 - Painel ao vivo: mostra o nome completo de quem reservou.
 

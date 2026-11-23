@@ -196,6 +196,7 @@
 
       <form id="signupForm" onsubmit="doSignup(event)" novalidate hidden>
         <div class="auth-title">Crie sua conta</div>
+        <div class="small muted" style="margin:-4px 0 12px;">Já tem conta, ou a coordenação já cadastrou você? Não crie outra: <button type="button" class="linklike" onclick="setAuthTab('login')">Entrar</button></div>
         <div class="field"><span class="label">Foto de perfil (opcional)</span>
           <label class="file-upload" id="suAvatarLabel"><input type="file" id="suAvatarInput" accept="image/*" onchange="onSignupAvatarChange(event)">
             <div id="suAvatarText">Adicionar foto</div></label>
@@ -275,7 +276,7 @@
 
 
 <!-- Firebase (SDK 10.14.1, cópia local) -->
-<script>window.APP_BUILD = '11.11.1';</script>
+<script>window.APP_BUILD = '11.12';</script>
 <script src="js/vendor/firebase-app-compat.js"></script>
 <script src="js/vendor/firebase-auth-compat.js"></script>
 <script src="js/vendor/firebase-firestore-compat.js"></script>

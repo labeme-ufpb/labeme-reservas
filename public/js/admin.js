@@ -309,19 +309,37 @@ function openCreateUserModal() {
     <div class="modal-head"><div><div class="modal-title">Cadastrar usuário</div><div class="modal-sub">Alunos, professores, técnicos ou coordenação</div></div>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button></div>
     <div class="modal-body">${userFormFields()}
-      <div class="field-row">
-        <div class="field"><label for="cuPwd">Senha inicial <span class="req">*</span></label><input type="password" id="cuPwd" autocomplete="new-password"></div>
-        <div class="field"><label for="cuPwdConfirm">Confirmar <span class="req">*</span></label><input type="password" id="cuPwdConfirm" autocomplete="new-password"></div>
+      <div class="field"><span class="label">Senha</span>
+        <div class="seg">
+          <label><input type="radio" name="cuPwdMode" value="email" checked onchange="onCreateUserPwdMode()"><span>A pessoa cria por e-mail (recomendado)</span></label>
+          <label><input type="radio" name="cuPwdMode" value="manual" onchange="onCreateUserPwdMode()"><span>Definir senha inicial agora</span></label>
+        </div></div>
+      <div class="info-box" id="cuPwdEmailInfo">Enviaremos um e-mail para a pessoa criar a própria senha. Depois ela usa <strong>Entrar</strong> — não "Criar conta".</div>
+      <div id="cuPwdManual" hidden>
+        <div class="field-row">
+          <div class="field"><label for="cuPwd">Senha inicial <span class="req">*</span></label><input type="password" id="cuPwd" autocomplete="new-password"></div>
+          <div class="field"><label for="cuPwdConfirm">Confirmar <span class="req">*</span></label><input type="password" id="cuPwdConfirm" autocomplete="new-password"></div>
+        </div>
+        <div class="field-help">Informe a senha à pessoa e oriente a usar <strong>Entrar</strong> (não "Criar conta") e a trocar a senha no primeiro acesso.</div>
       </div>
-      <div class="field-help">Oriente o usuário a trocar a senha no primeiro acesso (Meu perfil → Alterar senha).</div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="submitCreateUser()">Criar usuário</button></div>`);
+}
+function onCreateUserPwdMode() {
+  const manual = document.querySelector('input[name=cuPwdMode]:checked')?.value === 'manual';
+  document.getElementById('cuPwdManual').hidden = !manual;
+  document.getElementById('cuPwdEmailInfo').hidden = manual;
+}
+function randomPassword() {
+  const a = new Uint8Array(18); crypto.getRandomValues(a);
+  return 'Lb' + Array.from(a, b => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join('') + '7';
 }
 async function submitCreateUser() {
   if (!isAdmin()) return;
   const v = x => document.getElementById(x).value.trim();
   const name = v('cuName'), email = v('cuEmail').toLowerCase(), category = v('cuCategory'), role = v('cuRole');
-  const pwd = document.getElementById('cuPwd').value, conf = document.getElementById('cuPwdConfirm').value;
+  const byEmail = document.querySelector('input[name=cuPwdMode]:checked')?.value !== 'manual';
+  const pwd = byEmail ? randomPassword() : document.getElementById('cuPwd').value, conf = byEmail ? pwd : document.getElementById('cuPwdConfirm').value;
   if (!name || !email || !category || !pwd) return toast('Preencha os campos obrigatórios.', 'error');
   if (!validEmail(email)) return toast('E-mail inválido.', 'error');
   const prob = passwordProblem(pwd); if (prob) return toast(prob, 'error');
@@ -333,9 +351,25 @@ async function submitCreateUser() {
     const u = { id, name, email, phone: v('cuPhone'), category, role, advisor: v('cuAdvisor'), institution: v('cuInstitution'),
       active: true, avatar: null, profileReminderShown: false, createdAt: Date.now(), createdBy: currentUser().id };
     await writeDocNow('users', u);
-    closeModal(); toast(`Usuário ${name} criado. Informe a senha inicial a ele(a).`, 'success'); renderAdmin();
+    let mailed = false;
+    if (byEmail) { try { await sendResetEmail(email); mailed = true; } catch (e) { console.error(e); } }
+    closeModal(); renderAdmin();
+    openModal(`
+      <div class="modal-head"><div><div class="modal-title">Usuário criado</div><div class="modal-sub">${escapeHtml(name)} · ${escapeHtml(email)}</div></div>
+        <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button></div>
+      <div class="modal-body">
+        ${byEmail ? (mailed
+          ? `<div class="info-box success">Enviamos para <strong>${escapeHtml(email)}</strong> um link para a pessoa criar a própria senha (pode cair no spam).</div>`
+          : `<div class="info-box danger">A conta foi criada, mas o e-mail de senha não foi enviado. Use "Enviar e-mail de nova senha" na ficha do usuário.</div>`)
+          : `<div class="info-box">Informe a senha inicial à pessoa.</div>`}
+        <p style="margin-top:12px;">Oriente a pessoa a usar <strong>Entrar</strong> com este e-mail — <strong>não</strong> "Criar conta", porque a conta já existe.</p>
+        <p class="small muted">No primeiro acesso, o sistema pede o que faltar no cadastro (WhatsApp, orientador…).</p>
+      </div>
+      <div class="modal-foot"><button class="btn dark" onclick="closeModal()">Entendi</button></div>`);
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Criar usuário'; }
+    if (e && e.code === 'auth/email-already-in-use')
+      return toast('Este e-mail já tem conta de acesso (provavelmente de um cadastro excluído daqui). Peça para a pessoa usar "Entrar" ou "Esqueci minha senha": o perfil é recriado no primeiro acesso.', 'error');
     toast(authErrorMessage(e), 'error');
   }
 }

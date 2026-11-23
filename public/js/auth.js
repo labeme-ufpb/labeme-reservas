@@ -120,9 +120,84 @@ async function doSignup(ev) {
     ['suName','suEmail','suPhone','suAdvisor','suInstitution','suPwd','suPwdConfirm'].forEach(id => document.getElementById(id).value = '');
     // o perfil é gravado em onAuthChanged (app.js), assim que a conta existe
   } catch (e) {
+    if (e && e.code === 'auth/email-already-in-use') { await handleExistingAccount(email, pwd); return; }
     window._signupProfile = null;
     toast(authErrorMessage(e), 'error');
   } finally { if (btn) btn.disabled = false; }
+}
+
+/* O e-mail já tem conta (criada pela coordenação em "Cadastrar usuário" ou num cadastro anterior).
+   v11.12: em vez de só dizer "já cadastrado", tenta entrar com a senha digitada; se não der,
+   explica e oferece "Entrar" ou o link para criar a senha. Os dados preenchidos completam
+   o perfil ao entrar (só campos vazios — nada do que a coordenação definiu é trocado). */
+async function handleExistingAccount(email, pwd) {
+  window._signupMerge = Object.assign({}, window._signupProfile);   // _signupProfile fica: recria o perfil se ele tiver sido excluído
+  try {
+    await fb.auth.signInWithEmailAndPassword(email, pwd);   // mesma senha: entra direto (onAuthChanged completa os dados)
+    window._existingLogin = true;
+    return;
+  } catch (e) {
+    const wrongPwd = ['auth/invalid-credential', 'auth/wrong-password', 'auth/invalid-login-credentials', 'auth/user-not-found'].includes(e && e.code);
+    if (!wrongPwd && e && e.code !== 'auth/too-many-requests') { window._signupMerge = null; return toast(authErrorMessage(e), 'error'); }
+  }
+  showExistingAccountModal(email);
+}
+function showExistingAccountModal(email) {
+  openModal(`
+    <div class="modal-head"><div><div class="modal-title">Este e-mail já tem conta</div>
+      <div class="modal-sub">Não é preciso criar outra.</div></div>
+      <button class="modal-close" onclick="closeModal()" aria-label="Fechar">${icon('x')}</button></div>
+    <div class="modal-body">
+      <div class="info-box"><strong>${escapeHtml(email)}</strong> já está cadastrado no LABEME. A conta pode ter sido criada pela coordenação do laboratório ou num cadastro anterior seu.</div>
+      <p style="margin-top:12px;"><strong>Sabe a senha?</strong> Toque em <strong>Entrar</strong>.</p>
+      <p><strong>Não sabe ou nunca criou uma senha?</strong> Receba um link por e-mail para criar a sua e depois entre normalmente.</p>
+      <p class="small muted">Ao entrar, o sistema pede o que ainda estiver faltando no cadastro (WhatsApp, vínculo…).</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="goToLoginWith('${escapeHtml(email)}')">Entrar</button>
+      <button class="btn dark" onclick="sendExistingAccountLink('${escapeHtml(email)}')">${icon('key', 16)} Enviar link para criar senha</button>
+    </div>`);
+}
+function goToLoginWith(email) {
+  closeModal(); setAuthTab('login');
+  const le = document.getElementById('loginEmail'); if (le) le.value = email;
+  setTimeout(() => document.getElementById('loginPwd')?.focus(), 50);
+}
+async function sendExistingAccountLink(email) {
+  closeModal();
+  try { await sendResetEmail(email); }
+  catch (e) { if (e.code !== 'auth/user-not-found') { console.error(e); return toast(authErrorMessage(e), 'error'); } }
+  showGenericResetResponse(email);
+  setAuthTab('login');
+  const le = document.getElementById('loginEmail'); if (le) le.value = email;
+}
+
+/* Completa o perfil com o que a pessoa preencheu no formulário de cadastro (só o que estiver vazio) */
+async function applySignupMerge(u, m) {
+  const ch = {};
+  if ((!u.name || String(u.name).trim().split(/\s+/).length < 2) && m.name) ch.name = m.name;
+  if (!validPhone(u.phone) && validPhone(m.phone)) ch.phone = m.phone;
+  if (!u.category && SELF_CATEGORIES.includes(m.category)) ch.category = m.category;
+  const cat = ch.category || u.category;
+  if (STUDENT_CATEGORIES.includes(cat) && !String(u.advisor || '').trim() && m.advisor) ch.advisor = m.advisor;
+  if (EXTERNAL_CATEGORIES.includes(cat) && !String(u.institution || '').trim() && m.institution) ch.institution = m.institution;
+  if (!u.rulesAcceptedAt && m.rulesAcceptedAt) ch.rulesAcceptedAt = m.rulesAcceptedAt;
+  if (!Object.keys(ch).length) return false;
+  const prev = {}; Object.keys(ch).forEach(k => { prev[k] = u[k]; });
+  const wasIncomplete = u.incomplete;
+  Object.assign(u, ch);
+  if (u.incomplete && !profileMissing(u).length) delete u.incomplete;
+  try { await writeDocNow('users', u); }
+  catch (e) {
+    console.warn('Dados do cadastro não aplicados:', e);
+    Object.assign(u, prev); if (wasIncomplete) u.incomplete = wasIncomplete;
+    return false;
+  }
+  if (!u.avatar && m.avatar && /^data:image\//.test(m.avatar)) {
+    try { const ref = await storePhoto(m.avatar); u.avatar = ref; u.profileReminderShown = true; await fb.fs.collection('users').doc(u.id).update({ avatar: ref, profileReminderShown: true }); }
+    catch (e) { console.warn('Foto do cadastro não gravada:', e); }
+  }
+  return true;
 }
 
 function doLogout() {

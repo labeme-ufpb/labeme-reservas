@@ -204,6 +204,8 @@ function showProfileGate() {
         : `<div class="field"><label>Vínculo</label><input type="text" value="${escapeHtml(CATEGORY_LABELS[u.category] || '')}" disabled></div>`}
       <div class="field" id="pgAdvisorField" ${STUDENT_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgAdvisor">Orientador(a) <span class="req">*</span></label><input type="text" id="pgAdvisor" value="${escapeHtml(u.advisor || '')}" placeholder="Prof. Dr. …"></div>
       <div class="field" id="pgInstitutionField" ${EXTERNAL_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgInstitution">Instituição de origem <span class="req">*</span></label><input type="text" id="pgInstitution" value="${escapeHtml(u.institution || '')}"></div>
+      ${u.rulesAcceptedAt ? '' : `<details class="gate-rules"><summary>Ler as normas de uso do LABEME</summary><div class="small">${rulesHtml(window.db.settings.labRules || '')}</div></details>
+      <label class="checkbox-field"><input type="checkbox" id="pgRules"><div class="cf-text"><strong>Li e aceito as normas de uso do LABEME <span class="req">*</span></strong></div></label>`}
       <div class="profile-gate-foot">
         <button type="button" class="btn" onclick="doLogout()">Sair</button>
         <button type="button" class="btn dark" id="pgSave" onclick="submitProfileGate()">${icon('check', 16)} Salvar e continuar</button>
@@ -234,8 +236,11 @@ async function submitProfileGate() {
   if (!u.category && !SELF_CATEGORIES.includes(category)) return toast('Selecione o seu vínculo.', 'error');
   if (STUDENT_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
   if (EXTERNAL_CATEGORIES.includes(category) && !institution) return toast('Informe a instituição.', 'error');
-  const prev = { name: u.name, phone: u.phone, category: u.category, advisor: u.advisor, institution: u.institution, incomplete: u.incomplete };
+  const rulesBox = document.getElementById('pgRules');
+  if (rulesBox && !rulesBox.checked) return toast('É preciso aceitar as normas de uso do laboratório.', 'error');
+  const prev = { name: u.name, phone: u.phone, category: u.category, advisor: u.advisor, institution: u.institution, incomplete: u.incomplete, rulesAcceptedAt: u.rulesAcceptedAt };
   Object.assign(u, { name, phone, category });
+  if (rulesBox) u.rulesAcceptedAt = Date.now();
   if (STUDENT_CATEGORIES.includes(category)) u.advisor = advisor;
   if (EXTERNAL_CATEGORIES.includes(category)) u.institution = institution;
   delete u.incomplete;

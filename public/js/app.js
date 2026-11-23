@@ -130,13 +130,21 @@ async function onAuthChanged(fbUser) {
       await fb.auth.signOut();
       return;
     }
+    let merged = false;
+    if (window._signupMerge) {
+      const m = window._signupMerge; window._signupMerge = null; window._signupProfile = null;
+      if (m.email === (fbUser.email || '').toLowerCase()) merged = await applySignupMerge(u, m);
+    }
+    const existingLogin = window._existingLogin; window._existingLogin = false;
     await ensureInitialData();
     runHousekeeping();
     // último acesso (no máximo 1 gravação por hora)
     if (!u.lastLoginAt || Date.now() - u.lastLoginAt > 36e5) { u.lastLoginAt = Date.now(); saveDB(); }
     resetCalendarPrefs(u);
     refreshAuthUI();
-    if (_bootDone) toast(isNew ? 'Cadastro realizado!' : `Bem-vindo(a), ${firstName(u.name)}!`, 'success');
+    if (_bootDone) toast(isNew ? 'Cadastro realizado!'
+      : existingLogin ? `Você já tinha conta no LABEME — entramos nela${merged ? ' e completamos seus dados' : ''}. Bem-vindo(a), ${firstName(u.name)}!`
+      : `Bem-vindo(a), ${firstName(u.name)}!`, 'success');
     const fromHash = (location.hash || '').slice(1);
     const equip = window._afterLoginEquip || equipFromHash(); window._afterLoginEquip = null;
     const pending = window._afterLogin; window._afterLogin = null;

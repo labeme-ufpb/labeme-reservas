@@ -2768,3 +2768,7 @@ body.view-painel { background: #08213b; overflow: hidden; }
   .pp-logo { display: none; }
 }
 .page-head-btn { margin-top: 12px; }
+/* v11.12: normas na tela "Complete seu cadastro" */
+.gate-rules { margin: 4px 0 10px; border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 12px; background: var(--gray-50); }
+.gate-rules summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.gate-rules > div { max-height: 180px; overflow-y: auto; margin-top: 8px; }
