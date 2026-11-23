@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'pedidos | orfas-listar | orfas-apagar | autoteste'
+        description: 'pedidos | orfas-listar | orfas-apagar | autoteste | conta'
         required: false
         default: pedidos
+      hash:
+        description: 'modo conta: sha256 do e-mail em minúsculas (o e-mail não fica público)'
+        required: false
+        default: ''
 permissions:
   contents: read
   id-token: write
@@ -37,5 +41,6 @@ jobs:
       - name: Excluir contas
         env:
           MODE: ${{ inputs.modo || 'pedidos' }}
+          HASH: ${{ inputs.hash }}
           NODE_PATH: /tmp/fa/node_modules
         run: node scripts/excluir-contas.js

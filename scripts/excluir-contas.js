@@ -8,6 +8,8 @@
      orfas-listar  conta as contas de acesso sem perfil, sem uso há mais de 2 dias (só mostra o número).
      orfas-apagar  apaga essas contas sem perfil.
      autoteste     cria e apaga uma conta descartável, para conferir as permissões.
+     conta         apaga UMA conta de acesso sem perfil, identificada por HASH = sha256 do e-mail em minúsculas
+                   (o e-mail não aparece no registro público). Recusa se a conta ainda tiver perfil.
    O repositório é público e os registros do Actions também: nunca imprimir e-mails ou nomes. */
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -62,6 +64,23 @@ async function orphans(erase) {
   console.log(`Apagadas: ${done}`);
 }
 
+async function eraseByHash(h) {
+  const crypto = require('crypto');
+  h = String(h || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(h)) { console.log('HASH inválido.'); process.exitCode = 1; return; }
+  let token, match = null;
+  do {
+    const page = await auth.listUsers(1000, token);
+    match = page.users.find(u => u.email && crypto.createHash('sha256').update(u.email.toLowerCase()).digest('hex') === h) || null;
+    token = page.pageToken;
+  } while (token && !match);
+  if (!match) { console.log('Nenhuma conta de acesso com esse e-mail.'); return; }
+  const prof = await db.collection('users').doc(match.uid).get();
+  if (prof.exists) { console.log('A conta tem perfil no sistema: não foi apagada (exclua o usuário pela coordenação).'); process.exitCode = 1; return; }
+  await eraseAccount(match.uid);
+  console.log('Conta de acesso sem perfil apagada. O e-mail já pode ser cadastrado de novo.');
+}
+
 async function selfTest() {
   const u = await auth.createUser({ email: `autoteste-${Date.now()}@example.invalid`, password: 'T' + Math.random().toString(36).slice(2) + '9x' });
   await auth.deleteUser(u.uid);
@@ -74,5 +93,6 @@ async function selfTest() {
   else if (MODE === 'orfas-listar') await orphans(false);
   else if (MODE === 'orfas-apagar') await orphans(true);
   else if (MODE === 'autoteste') await selfTest();
+  else if (MODE === 'conta') await eraseByHash(process.env.HASH);
   else { console.log('MODO desconhecido:', MODE); process.exitCode = 1; }
 })().catch(e => { console.log('Erro:', e.code || '', e.message); process.exitCode = 1; });
