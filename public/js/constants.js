@@ -5,7 +5,7 @@
 /* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
    Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
    recarrega uma vez buscando a página atualizada. */
-const APP_BUILD = '11.13';
+const APP_BUILD = '11.14';
 (function checkBuild() {
   try {
     if (window.APP_BUILD === APP_BUILD) {
@@ -35,6 +35,8 @@ const STAFF_ONLY_CATEGORIES = ['graduacao_vinculo'];
 const STUDENT_CATEGORIES = ['graduacao','graduacao_vinculo','mestrado','doutorado'];
 const EXTERNAL_CATEGORIES = ['prof_externo','externo'];
 // Vínculos que a própria pessoa pode escolher (no cadastro ou ao completar um cadastro sem vínculo)
+// Vínculos que informam orientador(a): estudantes da UFPB e externos à UFPB (v11.14)
+const ADVISOR_CATEGORIES = ['graduacao','graduacao_vinculo','mestrado','doutorado','externo'];
 const SELF_CATEGORIES = ['graduacao','mestrado','doutorado','prof_depto','prof_externo','tecnico','externo'];
 /* WhatsApp: DDD + número (10 ou 11 dígitos); aceita +55 e números de outros países (até 13 dígitos) */
 function phoneDigits(p) { return String(p || '').replace(/\D/g, ''); }
@@ -47,7 +49,7 @@ function profileMissing(u) {
   if (String(u.name || '').trim().split(/\s+/).length < 2) miss.push('nome completo');
   if (!validPhone(u.phone)) miss.push('WhatsApp');
   if (!u.category) miss.push('vínculo');
-  if (STUDENT_CATEGORIES.includes(u.category) && !String(u.advisor || '').trim()) miss.push('orientador(a)');
+  if (ADVISOR_CATEGORIES.includes(u.category) && !String(u.advisor || '').trim()) miss.push('orientador(a)');
   if (EXTERNAL_CATEGORIES.includes(u.category) && !String(u.institution || '').trim()) miss.push('instituição');
   return miss;
 }
@@ -362,12 +364,41 @@ function avatarInitials(name) {
   if (parts.length === 1) return parts[0][0].toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
-function renderAvatar(user, size = '') {
+function renderAvatar(user, size = '', { zoom = true } = {}) {
   const cls = size ? `user-avatar ${size}` : 'user-avatar';
   const src = safeImg(user?.avatar);
+  // v11.14: com foto, a miniatura amplia ao clicar (sem disparar o clique da linha/cartão onde está)
+  if (src && zoom && user?.id && /^[A-Za-z0-9_-]{1,64}$/.test(user.id)) {
+    const go = `event.stopPropagation();event.preventDefault();viewAvatar('${user.id}')`;
+    return `<div class="${cls} avatar-zoom" role="button" tabindex="0" title="Ampliar foto" aria-label="Ampliar foto de ${escapeHtml(user.name || '')}" onclick="${go}" onkeydown="if(event.key==='Enter'||event.key===' '){${go}}"><img src="${src}" alt=""></div>`;
+  }
   if (src) return `<div class="${cls}"><img src="${src}" alt=""></div>`;
   return `<div class="${cls}" aria-hidden="true">${escapeHtml(avatarInitials(user?.name))}</div>`;
 }
+/* Visualizador de imagem em tela cheia (fecha com clique, Esc ou o botão) */
+function openImageViewer(src, caption = '') {
+  document.getElementById('imgViewer')?.remove();
+  const v = document.createElement('div');
+  v.id = 'imgViewer'; v.className = 'img-viewer';
+  v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', caption || 'Foto');
+  v.innerHTML = `<figure><img src="${src}" alt="${escapeHtml(caption)}">${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}</figure>
+    <button type="button" class="img-viewer-close" aria-label="Fechar">${icon('x', 22)}</button>`;
+  const prevFocus = document.activeElement;
+  const close = () => { window.removeEventListener('keydown', onKey, true); v.remove(); try { prevFocus?.focus?.(); } catch (_) {} };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); } };
+  v.addEventListener('click', close);
+  window.addEventListener('keydown', onKey, true);
+  document.body.appendChild(v);
+  v.querySelector('.img-viewer-close').focus();
+}
+async function viewAvatar(uid) {
+  const u = getUser(uid); if (!u || !u.avatar) return;
+  let src = safeImg(u.avatar);
+  if (/^photo:/.test(u.avatar) && (!src || src.startsWith('assets/blank.gif'))) src = await loadPhotoNow(u.avatar.slice(6));
+  if (!src) return toast('A foto ainda está carregando. Tente de novo em instantes.', 'info');
+  openImageViewer(src, u.name);
+}
+
 function statusPill(status) {
   return `<span class="pill ${escapeHtml(status)}">${escapeHtml(RES_STATUS[status] || status)}</span>`;
 }

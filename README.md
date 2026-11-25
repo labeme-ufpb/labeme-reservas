@@ -31,6 +31,12 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.14 (24/11/2026) — solicitante em destaque, fotos ampliáveis, recorte da foto de perfil
+- Ficha da reserva: bloco "Solicitante" no topo, com nome em destaque, miniatura da foto, vínculo, instituição e orientador(a).
+- Toda miniatura com foto (ficha da reserva, lista de usuários, edição de usuário, mensagens, perfil) amplia ao clicar (`viewAvatar` / `openImageViewer`); o clique não abre a linha ou o cartão onde a miniatura está. A miniatura da barra superior continua sendo o atalho para o perfil.
+- Foto de perfil (cadastro, Meu perfil e lembrete de foto): passa pelo mesmo ajuste de enquadramento dos equipamentos, com guia redonda; gravada em 640 × 640 (antes 320).
+- "Externo à UFPB" agora informa orientador(a) (cadastro, perfil, tela de completar cadastro, Cadastrar usuário). Externos já cadastrados sem orientador são pedidos a informar no próximo acesso. Professor externo não precisa.
+
 ### v11.13 (23/11/2026) — excluir usuário apaga também a conta de acesso
 - Ao excluir um usuário (Coordenação → Usuários → Excluir), o sistema apaga o perfil, o contato (e-mail/WhatsApp) e registra um pedido em `authDeletions/{uid}`.
 - O workflow **Excluir contas de acesso** (`.github/workflows/excluir-contas.yml`, a cada 10 min, grátis) apaga a conta no Firebase Authentication com o Admin SDK (`scripts/excluir-contas.js`), usando a mesma conta de serviço da publicação. Só apaga se o perfil não existir mais. Depois disso o e-mail pode ser cadastrado de novo, com qualquer senha.

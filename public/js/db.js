@@ -357,6 +357,17 @@ function photoSrc(pid) {
   return `${PHOTO_PLACEHOLDER}?pid=${pid}`;
 }
 
+/* Foto já carregada (para ampliar): usa o cache ou busca agora */
+async function loadPhotoNow(pid) {
+  const hit = photoCacheGet(pid); if (hit) return hit;
+  try {
+    const snap = await fb.fs.collection('photos').doc(pid).get();
+    const d = snap.exists ? snap.data().data : null;
+    if (typeof d === 'string' && /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(d)) { photoCachePut(pid, d); return d; }
+  } catch (e) { console.warn('Foto', pid, e.code || e); }
+  return '';
+}
+
 let _lastWriteErr = 0;
 function _reportWriteError(e) {
   console.error('Falha ao gravar:', e);

@@ -11,7 +11,7 @@
 const CROP_RATIO = 3 / 2;
 const CROP_OUT_W = 1200;
 
-function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' } = {}) {
+function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento', outW = 0, round = false } = {}) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => start(img);
@@ -26,7 +26,7 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
         <div class="crop-box">
           <div class="crop-head"><div><div class="modal-title">${escapeHtml(title)}</div>
             <div class="modal-sub">Arraste para posicionar · use o controle (ou dois dedos) para aproximar</div></div></div>
-          <div class="crop-stage"><canvas class="crop-canvas"></canvas><div class="crop-grid" aria-hidden="true"></div></div>
+          <div class="crop-stage ${round ? 'round' : ''}"><canvas class="crop-canvas"></canvas><div class="crop-grid" aria-hidden="true"></div>${round ? '<div class="crop-circle" aria-hidden="true"></div>' : ''}</div>
           <div class="crop-tools">
             <button type="button" class="icon-btn" data-act="out" aria-label="Afastar">−</button>
             <input type="range" class="crop-zoom" min="0" max="1000" value="0" aria-label="Aproximação">
@@ -121,7 +121,7 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
         if (act === 'ok') {
           const out = document.createElement('canvas');
           out.width = ratio >= 1 ? CROP_OUT_W : Math.round(CROP_OUT_W * ratio); out.height = Math.round(out.width / ratio);
-          if (ratio === 1) out.width = out.height = 1000;
+          if (ratio === 1) out.width = out.height = outW || 1000;
           paint(out, out.width / st.fw);
           let data = null;
           try { data = out.toDataURL('image/jpeg', 0.82); } catch (_) { toast('Esta foto não pode ser ajustada aqui. Escolha o arquivo novamente.', 'error'); }
@@ -132,6 +132,15 @@ function openCropper(src, { ratio = CROP_RATIO, title = 'Ajustar enquadramento' 
       ov.querySelector('[data-act=ok]').focus();
     }
   });
+}
+
+/* Foto de perfil (v11.14): escolhe o arquivo → enquadra num círculo → JPG 640 × 640 */
+async function cropAvatarFile(input) {
+  const file = input?.files?.[0]; if (!file) return null;
+  input.value = '';   // permite escolher o mesmo arquivo de novo
+  let src;
+  try { src = await fileToDataURL(file, 1800, 0.9); } catch (e) { toast(e.message, 'error'); return null; }
+  return openCropper(src, { ratio: 1, title: 'Enquadrar foto de perfil', outW: 640, round: true });
 }
 
 /* Foto do estoque de materiais (quadrada) */

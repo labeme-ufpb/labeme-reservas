@@ -2772,3 +2772,24 @@ body.view-painel { background: #08213b; overflow: hidden; }
 .gate-rules { margin: 4px 0 10px; border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 12px; background: var(--gray-50); }
 .gate-rules summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 .gate-rules > div { max-height: 180px; overflow-y: auto; margin-top: 8px; }
+
+/* ---------- v11.14: solicitante em destaque, foto ampliável, recorte redondo ---------- */
+.user-avatar.medium { width: 56px; height: 56px; font-size: 19px; }
+.avatar-zoom { cursor: zoom-in; transition: box-shadow .15s, transform .15s; }
+.avatar-zoom:hover { box-shadow: 0 0 0 3px rgba(242, 182, 50, .55); transform: scale(1.04); }
+.avatar-zoom:focus-visible { outline: 2px solid var(--labeme-navy, #0d3257); outline-offset: 2px; }
+.res-requester { display: flex; align-items: center; gap: 14px; padding: 12px 14px; margin: 4px 0 14px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-50); }
+.res-requester-info { min-width: 0; }
+.res-requester-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--gray-500, #6b7280); }
+.res-requester-name { font-size: 19px; font-weight: 700; line-height: 1.25; color: var(--labeme-navy, #0d3257); overflow-wrap: anywhere; }
+.res-requester-sub { font-size: 13.5px; color: var(--gray-600, #4b5563); }
+.img-viewer { position: fixed; inset: 0; z-index: 300; background: rgba(6, 18, 34, .88); display: grid; place-items: center; padding: 20px; cursor: zoom-out; animation: imgViewerIn .15s ease-out; }
+@keyframes imgViewerIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .img-viewer { animation: none; } }
+.img-viewer figure { margin: 0; text-align: center; }
+.img-viewer img { display: block; width: min(86vw, 560px); height: auto; max-height: 80vh; object-fit: contain; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #fff; }
+.img-viewer figcaption { color: #fff; font-weight: 600; font-size: 16px; margin-top: 12px; }
+.img-viewer-close { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.img-viewer-close:hover { background: rgba(255,255,255,.26); }
+.crop-stage.round .crop-grid { display: none; }
+.crop-circle { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; box-shadow: 0 0 0 9999px rgba(9, 24, 46, .45); outline: 2px solid rgba(255,255,255,.9); outline-offset: -2px; }

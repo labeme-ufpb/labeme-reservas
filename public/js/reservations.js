@@ -588,12 +588,18 @@ function showResDetail(id) {
       ${img ? `<img src="${img}" alt="" class="detail-photo">` : ''}
       ${isOverdueReturn(r) ? `<div class="info-box danger">${icon('alert', 16)} <strong>Devolução atrasada</strong> — a foto de devolução ainda não foi enviada.</div>` : ''}
       ${reasonBox}
+      <div class="res-requester">
+        ${u ? renderAvatar(u, 'medium') : ''}
+        <div class="res-requester-info">
+          <div class="res-requester-label">Solicitante</div>
+          <div class="res-requester-name">${escapeHtml(u?.name || 'Usuário removido')}</div>
+          <div class="res-requester-sub">${escapeHtml([CATEGORY_LABELS[u?.category], u?.institution].filter(Boolean).join(' · ') || '—')}</div>
+          ${u?.advisor ? `<div class="res-requester-sub">Orientador(a): ${escapeHtml(u.advisor)}</div>` : ''}
+        </div>
+      </div>
       <dl class="res-meta">
         <div><dt>Status</dt><dd>${statusPill(r.status)}</dd></div>
-        <div><dt>Solicitante</dt><dd>${escapeHtml(u?.name || 'Usuário removido')}</dd></div>
-        <div><dt>Categoria</dt><dd>${escapeHtml(CATEGORY_LABELS[u?.category] || '—')}</dd></div>
         ${staff ? `<div><dt>Contato</dt><dd>${escapeHtml(u?.email || '—')}${u?.phone ? '<br>' + escapeHtml(u.phone) : ''}</dd></div>` : ''}
-        ${u?.advisor ? `<div><dt>Orientador(a)</dt><dd>${escapeHtml(u.advisor)}</dd></div>` : ''}
         ${res?.location ? `<div><dt>Local</dt><dd>${escapeHtml(res.location)}</dd></div>` : ''}
         ${r.purposeType ? `<div><dt>Atividade</dt><dd>${escapeHtml(PURPOSE_TYPES[r.purposeType] || r.purposeType)}</dd></div>` : ''}
         ${r.project ? `<div><dt>Projeto</dt><dd>${escapeHtml(r.project)}</dd></div>` : ''}

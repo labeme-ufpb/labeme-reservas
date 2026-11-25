@@ -52,14 +52,13 @@ function setAuthTab(tab) {
 
 function onCategoryChange() {
   const cat = document.getElementById('suCategory').value;
-  document.getElementById('advisorField').hidden = !STUDENT_CATEGORIES.includes(cat);
+  document.getElementById('advisorField').hidden = !ADVISOR_CATEGORIES.includes(cat);
   document.getElementById('institutionField').hidden = !EXTERNAL_CATEGORIES.includes(cat);
 }
 
 function onSignupAvatarChange(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  fileToDataURL(file, 320, 0.82).then(dataUrl => {
+  cropAvatarFile(e.target).then(dataUrl => {
+    if (!dataUrl) return;
     window._signupAvatar = dataUrl;
     const prev = document.getElementById('suAvatarPreview');
     prev.src = dataUrl; prev.hidden = false;
@@ -100,7 +99,7 @@ async function doSignup(ev) {
   if (!SELF_CATEGORIES.includes(category)) return toast('Selecione o seu vínculo.', 'error');
   const prob = passwordProblem(pwd); if (prob) return toast(prob, 'error');
   if (pwd !== pwdConfirm) return toast('As senhas não coincidem.', 'error');
-  if (STUDENT_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
+  if (ADVISOR_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
   if (EXTERNAL_CATEGORIES.includes(category) && !institution) return toast('Informe a instituição.', 'error');
   if (!accepted) return toast('É preciso aceitar as normas de uso do laboratório.', 'error');
 
@@ -180,7 +179,7 @@ async function applySignupMerge(u, m) {
   if (!validPhone(u.phone) && validPhone(m.phone)) ch.phone = m.phone;
   if (!u.category && SELF_CATEGORIES.includes(m.category)) ch.category = m.category;
   const cat = ch.category || u.category;
-  if (STUDENT_CATEGORIES.includes(cat) && !String(u.advisor || '').trim() && m.advisor) ch.advisor = m.advisor;
+  if (ADVISOR_CATEGORIES.includes(cat) && !String(u.advisor || '').trim() && m.advisor) ch.advisor = m.advisor;
   if (EXTERNAL_CATEGORIES.includes(cat) && !String(u.institution || '').trim() && m.institution) ch.institution = m.institution;
   if (!u.rulesAcceptedAt && m.rulesAcceptedAt) ch.rulesAcceptedAt = m.rulesAcceptedAt;
   if (!Object.keys(ch).length) return false;
@@ -228,7 +227,7 @@ function refreshAuthUI() {
   if (meta) meta.content = u?.role === 'technician' ? '#04592c' : '#092B4D';
 
   const slot = document.getElementById('userAvatarSlot');
-  if (slot) slot.innerHTML = u ? renderAvatar(u, 'small') : '';
+  if (slot) slot.innerHTML = u ? renderAvatar(u, 'small', { zoom: false }) : '';
   const label = document.getElementById('userNameLabel');
   if (label) label.textContent = u ? shortName(u.name, 3) : '';
   const prof = document.getElementById('nav-profile');
@@ -282,8 +281,8 @@ function showProfilePhotoReminder() {
     </div>`);
 }
 function onReminderPhotoChange(e) {
-  const file = e.target.files[0]; if (!file) return;
-  fileToDataURL(file, 320, 0.82).then(dataUrl => {
+  cropAvatarFile(e.target).then(dataUrl => {
+    if (!dataUrl) return;
     window._reminderPhoto = dataUrl;
     const p = document.getElementById('reminderPhotoPreview'); p.src = dataUrl; p.hidden = false;
     document.getElementById('reminderPhotoText').textContent = 'Foto selecionada';

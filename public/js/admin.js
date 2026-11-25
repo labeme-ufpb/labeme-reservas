@@ -294,12 +294,12 @@ function userFormFields(u = {}) {
           ${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${(u.role || 'user') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         ${u.id && u.id === currentUser()?.id ? '<div class="field-help">Você não pode alterar o próprio papel.</div>' : '<div class="field-help">Técnicos e coordenação aprovam reservas.</div>'}</div>
     </div>
-    <div class="field" id="cuAdvisorField" ${STUDENT_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="cuAdvisor">Orientador(a)</label><input type="text" id="cuAdvisor" value="${escapeHtml(u.advisor || '')}"></div>
+    <div class="field" id="cuAdvisorField" ${ADVISOR_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="cuAdvisor">Orientador(a)</label><input type="text" id="cuAdvisor" value="${escapeHtml(u.advisor || '')}"></div>
     <div class="field" id="cuInstitutionField" ${EXTERNAL_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="cuInstitution">Instituição</label><input type="text" id="cuInstitution" value="${escapeHtml(u.institution || '')}"></div>`;
 }
 function onCreateUserCategoryChange() {
   const cat = document.getElementById('cuCategory').value;
-  document.getElementById('cuAdvisorField').hidden = !STUDENT_CATEGORIES.includes(cat);
+  document.getElementById('cuAdvisorField').hidden = !ADVISOR_CATEGORIES.includes(cat);
   document.getElementById('cuInstitutionField').hidden = !EXTERNAL_CATEGORIES.includes(cat);
   if (cat === 'tecnico' && document.getElementById('cuRole').value === 'user') document.getElementById('cuRole').value = 'technician';
 }
@@ -399,7 +399,7 @@ function saveUser(id) {
   if (!v('cuName')) return toast('Nome obrigatório.', 'error');
   u.name = v('cuName'); u.phone = v('cuPhone'); u.category = v('cuCategory') || u.category;
   if (!document.getElementById('cuRole').disabled) u.role = v('cuRole');
-  u.advisor = STUDENT_CATEGORIES.includes(u.category) ? v('cuAdvisor') : '';
+  u.advisor = ADVISOR_CATEGORIES.includes(u.category) ? v('cuAdvisor') : '';
   u.institution = EXTERNAL_CATEGORIES.includes(u.category) ? v('cuInstitution') : (u.institution || '');
   saveDB(); closeModal(); toast('Usuário atualizado.', 'success'); renderAdmin(); refreshAuthUI();
 }

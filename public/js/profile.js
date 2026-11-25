@@ -71,7 +71,7 @@ function renderProfile() {
               <input type="text" value="${escapeHtml(CATEGORY_LABELS[u.category] || '')}" disabled>
               <div class="field-help">Para alterar a categoria, entre em contato com a coordenação.</div>
             </div>
-            ${u.advisor !== undefined && STUDENT_CATEGORIES.includes(u.category) ? `
+            ${ADVISOR_CATEGORIES.includes(u.category) ? `
               <div class="field"><label>Orientador</label>
                 <input type="text" id="pfAdvisor" value="${escapeHtml(u.advisor||'')}">
               </div>
@@ -114,9 +114,8 @@ function renderProfile() {
 }
 
 function onProfileAvatarChange(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  fileToDataURL(file, 320, 0.82).then(dataUrl => {
+  cropAvatarFile(e.target).then(dataUrl => {
+    if (!dataUrl) return;
     const u = currentUser();
     if (!u) return;
     u.avatar = dataUrl;
@@ -202,7 +201,7 @@ function showProfileGate() {
         <select id="pgCategory" onchange="onGateCategoryChange()"><option value="">Selecione…</option>
           ${SELF_CATEGORIES.map(k => `<option value="${k}">${escapeHtml(CATEGORY_LABELS[k])}</option>`).join('')}</select></div>`
         : `<div class="field"><label>Vínculo</label><input type="text" value="${escapeHtml(CATEGORY_LABELS[u.category] || '')}" disabled></div>`}
-      <div class="field" id="pgAdvisorField" ${STUDENT_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgAdvisor">Orientador(a) <span class="req">*</span></label><input type="text" id="pgAdvisor" value="${escapeHtml(u.advisor || '')}" placeholder="Prof. Dr. …"></div>
+      <div class="field" id="pgAdvisorField" ${ADVISOR_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgAdvisor">Orientador(a) <span class="req">*</span></label><input type="text" id="pgAdvisor" value="${escapeHtml(u.advisor || '')}" placeholder="Prof. Dr. …"></div>
       <div class="field" id="pgInstitutionField" ${EXTERNAL_CATEGORIES.includes(u.category) ? '' : 'hidden'}><label for="pgInstitution">Instituição de origem <span class="req">*</span></label><input type="text" id="pgInstitution" value="${escapeHtml(u.institution || '')}"></div>
       ${u.rulesAcceptedAt ? '' : `<details class="gate-rules"><summary>Ler as normas de uso do LABEME</summary><div class="small">${rulesHtml(window.db.settings.labRules || '')}</div></details>
       <label class="checkbox-field"><input type="checkbox" id="pgRules"><div class="cf-text"><strong>Li e aceito as normas de uso do LABEME <span class="req">*</span></strong></div></label>`}
@@ -217,7 +216,7 @@ function showProfileGate() {
 }
 function onGateCategoryChange() {
   const cat = document.getElementById('pgCategory')?.value || '';
-  document.getElementById('pgAdvisorField').hidden = !STUDENT_CATEGORIES.includes(cat);
+  document.getElementById('pgAdvisorField').hidden = !ADVISOR_CATEGORIES.includes(cat);
   document.getElementById('pgInstitutionField').hidden = !EXTERNAL_CATEGORIES.includes(cat);
 }
 function closeProfileGate() {
@@ -234,14 +233,14 @@ async function submitProfileGate() {
   if (!validPhone(phone)) return toast('Informe o WhatsApp com DDD, por exemplo (83) 99999-9999.', 'error');
   if (!category) return toast('Selecione o seu vínculo.', 'error');
   if (!u.category && !SELF_CATEGORIES.includes(category)) return toast('Selecione o seu vínculo.', 'error');
-  if (STUDENT_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
+  if (ADVISOR_CATEGORIES.includes(category) && !advisor) return toast('Informe o(a) orientador(a).', 'error');
   if (EXTERNAL_CATEGORIES.includes(category) && !institution) return toast('Informe a instituição.', 'error');
   const rulesBox = document.getElementById('pgRules');
   if (rulesBox && !rulesBox.checked) return toast('É preciso aceitar as normas de uso do laboratório.', 'error');
   const prev = { name: u.name, phone: u.phone, category: u.category, advisor: u.advisor, institution: u.institution, incomplete: u.incomplete, rulesAcceptedAt: u.rulesAcceptedAt };
   Object.assign(u, { name, phone, category });
   if (rulesBox) u.rulesAcceptedAt = Date.now();
-  if (STUDENT_CATEGORIES.includes(category)) u.advisor = advisor;
+  if (ADVISOR_CATEGORIES.includes(category)) u.advisor = advisor;
   if (EXTERNAL_CATEGORIES.includes(category)) u.institution = institution;
   delete u.incomplete;
   const btn = document.getElementById('pgSave'); if (btn) btn.disabled = true;
