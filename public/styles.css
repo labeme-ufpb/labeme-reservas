@@ -2793,3 +2793,8 @@ body.view-painel { background: #08213b; overflow: hidden; }
 .img-viewer-close:hover { background: rgba(255,255,255,.26); }
 .crop-stage.round .crop-grid { display: none; }
 .crop-circle { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; box-shadow: 0 0 0 9999px rgba(9, 24, 46, .45); outline: 2px solid rgba(255,255,255,.9); outline-offset: -2px; }
+/* v11.15: caixas da Coordenação clicáveis, com a selecionada destacada */
+.stat-card.is-active { border-color: var(--labeme-navy, #0d3257); box-shadow: 0 0 0 2px var(--labeme-navy, #0d3257) inset, var(--shadow-sm); }
+button.stat-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md, 0 6px 18px rgba(9,34,62,.12)); }
+button.stat-card:focus-visible { outline: 2px solid var(--labeme-navy, #0d3257); outline-offset: 2px; }
+#adminContent .panel-title:focus { outline: none; }

@@ -10,32 +10,55 @@ let allResFilters = { status: 'all', from: '', to: '', q: '' };
 let reportPeriod = 'semester';
 
 const ADMIN_TABS = [
-  ['pending', 'Pendentes', 'clock'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'], ['maintenance', 'Manutenção', 'wrench'],
+  ['pending', 'Pendentes', 'clock'], ['today', 'Hoje', 'calendar'], ['week', 'Próximos 7 dias', 'calendar'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'], ['maintenance', 'Manutenção', 'wrench'],
   ['users', 'Usuários', 'users'], ['announcements', 'Avisos', 'megaphone'], ['all-res', 'Reservas', 'list'], ['reports', 'Relatórios', 'chart'],
   ['settings', 'Configurações', 'settings'], ['backup', 'Backup', 'database']
 ];
 
 function setAdminTab(tab) { adminTab = tab; renderAdmin(); }
+/* v11.15: caixas do topo abrem a lista correspondente e rolam a tela até ela */
+function openAdminCard(tab) {
+  setAdminTab(tab);
+  const el = document.getElementById('adminContent'); if (!el) return;
+  const top = el.getBoundingClientRect().top + window.scrollY - 84;
+  window.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  const h = el.querySelector('.panel-title'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+}
+function adminLists() {
+  const R = window.db.reservations, today = todayISO(), weekEnd = addDaysISO(today, 7);
+  const live = ['approved', 'in_use', 'awaiting_return'];
+  const byTime = (a, b) => (a.date + reservationRange(a).start).localeCompare(b.date + reservationRange(b).start);
+  return {
+    today, byTime,
+    pending: R.filter(r => r.status === 'pending'),
+    todayList: R.filter(r => resCovers(r, today) && live.includes(r.status)).sort(byTime),
+    // próximos 7 dias: de amanhã em diante (o que é de hoje fica na caixa "Hoje")
+    week: R.filter(r => live.includes(r.status) && resOverlapsDates(r, addDaysISO(today, 1), weekEnd)).sort(byTime),
+    returns: R.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r))
+  };
+}
 
 function renderAdmin() {
   if (!isAdmin()) return showView('calendar');
-  const R = window.db.reservations, today = todayISO();
-  const pending = R.filter(r => r.status === 'pending').length;
-  const returns = R.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r)).length;
-  const badges = { pending, returns, maintenance: maintenanceBadgeCount() };
+  const L = adminLists(), today = L.today;
+  const pending = L.pending.length, returns = L.returns.length;
+  const badges = { pending, today: L.todayList.length, returns, maintenance: maintenanceBadgeCount() };
 
   document.getElementById('adminSide').innerHTML = ADMIN_TABS.map(([k, l, ic]) =>
     `<button class="${adminTab === k ? 'active' : ''}" aria-current="${adminTab === k ? 'page' : 'false'}" onclick="setAdminTab('${k}')">${icon(ic, 17)}<span>${l}</span>${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
 
   const maint = window.db.resources.filter(r => r.active && r.status === 'maintenance').length;
-  document.getElementById('statsRow').innerHTML = `
-    <button class="stat-card accent-amber" onclick="setAdminTab('pending')"><div class="stat-label">Pendentes</div><div class="stat-value">${pending}</div><div class="stat-foot">aguardando aprovação</div></button>
-    <div class="stat-card accent-green"><div class="stat-label">Hoje</div><div class="stat-value">${R.filter(r => resCovers(r, today) && ['approved','in_use','awaiting_return'].includes(r.status)).length}</div><div class="stat-foot">${fmtDateShort(today)}</div></div>
-    <button class="stat-card accent-steel" onclick="setAdminTab('returns')"><div class="stat-label">Devoluções</div><div class="stat-value">${returns}</div><div class="stat-foot">a conferir / atrasadas</div></button>
-    <button class="stat-card accent-navy" onclick="setAdminTab('resources')"><div class="stat-label">Em manutenção</div><div class="stat-value">${maint}</div><div class="stat-foot">de ${window.db.resources.filter(r => r.active).length} recursos ativos</div></button>`;
+  const card = (tab, accent, label, value, foot) =>
+    `<button class="stat-card ${accent} ${adminTab === tab ? 'is-active' : ''}" aria-pressed="${adminTab === tab}" onclick="openAdminCard('${tab}')"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-foot">${foot}</div></button>`;
+  document.getElementById('statsRow').innerHTML =
+    card('pending', 'accent-amber', 'Pendentes', pending, pending ? 'toque para aprovar ou recusar' : 'aguardando aprovação') +
+    card('today', 'accent-green', 'Hoje', L.todayList.length, fmtDateShort(today)) +
+    card('week', 'accent-steel', 'Próximos 7 dias', L.week.length, 'reservas confirmadas') +
+    card('returns', 'accent-steel', 'Devoluções', returns, 'a conferir / atrasadas') +
+    card('maintenance', 'accent-navy', 'Em manutenção', maint, `de ${window.db.resources.filter(r => r.active).length} recursos ativos`);
 
   const content = document.getElementById('adminContent');
-  const fn = { pending: adminPending, returns: adminReturns, resources: adminResources, maintenance: maintenanceOverviewHtml, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
+  const fn = { pending: adminPending, today: adminToday, week: adminWeek, returns: adminReturns, resources: adminResources, maintenance: maintenanceOverviewHtml, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
     reports: adminReports, settings: adminSettings, backup: adminBackup }[adminTab] || adminPending;
   content.innerHTML = fn();
 }
@@ -49,6 +72,20 @@ function adminPending() {
   const list = window.db.reservations.filter(r => r.status === 'pending').sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
   return panel('Reservas pendentes', list.length ? `${list.length} aguardando análise — mais próximas primeiro.` : '',
     list.length ? `<div class="panel-body"><div class="res-list">${list.map(r => reservationRow(r, { quick: true })).join('')}</div></div>` : emptyBox('Nenhuma reserva pendente — tudo em dia!'));
+}
+function adminToday() {
+  const { todayList, today } = adminLists();
+  return panel(`Hoje — ${fmtDateLong(today)}`, todayList.length ? `${todayList.length} uso(s) previsto(s). Inicie, conclua ou confira devoluções na própria linha.` : '',
+    todayList.length ? `<div class="panel-body"><div class="res-list">${todayList.map(r => reservationRow(r, { quick: true })).join('')}</div></div>` : emptyBox('Nenhum uso previsto para hoje.', 'calendar'));
+}
+function adminWeek() {
+  const { week, today } = adminLists();
+  const byDay = {};
+  week.forEach(r => (byDay[r.date <= today ? addDaysISO(today, 1) : r.date] ||= []).push(r));
+  return panel('Próximos 7 dias', week.length ? `${week.length} reserva(s) confirmada(s), a partir de amanhã.` : '',
+    week.length ? `<div class="panel-body">${Object.entries(byDay).map(([d, list]) =>
+      `<section class="agenda-day"><h3>${fmtDateLong(d)}</h3><div class="res-list">${list.map(r => reservationRow(r, { quick: true })).join('')}</div></section>`).join('')}</div>`
+      : emptyBox('Nenhuma reserva confirmada nos próximos 7 dias.', 'calendar'));
 }
 function adminReturns() {
   const list = window.db.reservations.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r)).sort((a, b) => a.date.localeCompare(b.date));

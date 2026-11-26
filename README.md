@@ -31,6 +31,10 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.15 (26/11/2026) — caixas da Coordenação clicáveis
+- As caixas do topo da aba Coordenação abrem a lista correspondente logo abaixo, com rolagem automática e a caixa escolhida destacada: Pendentes (aprovar/recusar na própria linha), Hoje, Próximos 7 dias (nova, agrupada por dia), Devoluções e Em manutenção (agora abre a aba Manutenção).
+- Novas abas laterais "Hoje" e "Próximos 7 dias" na Coordenação, com as mesmas ações rápidas do Painel técnico.
+
 ### v11.14 (24/11/2026) — solicitante em destaque, fotos ampliáveis, recorte da foto de perfil
 - Ficha da reserva: bloco "Solicitante" no topo, com nome em destaque, miniatura da foto, vínculo, instituição e orientador(a).
 - Toda miniatura com foto (ficha da reserva, lista de usuários, edição de usuário, mensagens, perfil) amplia ao clicar (`viewAvatar` / `openImageViewer`); o clique não abre a linha ou o cartão onde a miniatura está. A miniatura da barra superior continua sendo o atalho para o perfil.
