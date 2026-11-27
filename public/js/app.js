@@ -156,7 +156,7 @@ async function onAuthChanged(fbUser) {
     else if (profileMissing(u).length) { closeModal(); showProfileGate(); }   // cadastro incompleto: completar antes de usar
     else setTimeout(() => {
       checkAnnouncements();   // avisos da coordenação têm prioridade
-      if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder();
+      maybeShowPhotoReminder();
     }, 500);
   } catch (e) {
     console.error(e);

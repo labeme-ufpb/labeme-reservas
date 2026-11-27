@@ -202,6 +202,7 @@ async function applySignupMerge(u, m) {
 
 function doLogout() {
   closeMobileNav();
+  forgetPhotoReminder();   // na próxima entrada (mesmo nesta aba) o lembrete da foto volta
   window._afterLogin = null;
   fb.auth.signOut().then(() => toast('Sessão encerrada.'));
 }
@@ -257,10 +258,32 @@ function updateNavBadges() {
   if (dot) dot.hidden = !(unread || (isTechnician() && pending + awaiting));
 }
 
-/* ---------- Lembrete de foto ---------- */
+/* ---------- Lembrete de foto ----------
+   v11.17: quem está sem foto de perfil é lembrado a cada entrada no sistema (uma vez por sessão:
+   abrir o site/app de novo ou entrar após "Sair" conta como nova entrada). */
+const _PHOTO_REMINDER_KEY = 'labemePhotoReminder';
+let _photoRemindedUid = null;   // reserva, se o navegador bloquear o sessionStorage
+function photoReminderDue(u) {
+  if (!u || u.avatar) return false;
+  try { return sessionStorage.getItem(_PHOTO_REMINDER_KEY) !== u.id; } catch { return _photoRemindedUid !== u.id; }
+}
+function markPhotoReminded(u) {
+  _photoRemindedUid = u.id;
+  try { sessionStorage.setItem(_PHOTO_REMINDER_KEY, u.id); } catch {}
+}
+function forgetPhotoReminder() {
+  _photoRemindedUid = null;
+  try { sessionStorage.removeItem(_PHOTO_REMINDER_KEY); } catch {}
+}
+function maybeShowPhotoReminder() {
+  const u = currentUser();
+  if (currentView === 'painel' || modalIsOpen() || !photoReminderDue(u)) return;
+  showProfilePhotoReminder();
+}
 function showProfilePhotoReminder() {
   const u = currentUser();
   if (!u || u.avatar) return;
+  markPhotoReminded(u);
   openModal(`
     <div class="modal-head">
       <div><div class="modal-title">Adicione uma foto de perfil</div>
@@ -268,7 +291,7 @@ function showProfilePhotoReminder() {
       <button class="modal-close" onclick="dismissProfileReminder()" aria-label="Fechar">${icon('x')}</button>
     </div>
     <div class="modal-body">
-      <div class="info-box">A foto facilita o reconhecimento na retirada de equipamentos e materiais. É opcional.</div>
+      <div class="info-box">A foto facilita o reconhecimento na retirada de equipamentos e materiais. Enquanto o seu perfil estiver sem foto, este lembrete aparece a cada entrada no sistema.</div>
       <label class="file-upload" id="reminderPhotoLabel">
         <input type="file" id="reminderPhotoInput" accept="image/*" onchange="onReminderPhotoChange(event)">
         <div id="reminderPhotoText">${icon('camera')} Escolher foto</div>

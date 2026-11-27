@@ -257,5 +257,5 @@ async function submitProfileGate() {
   toast('Cadastro completo. Obrigado!', 'success');
   if (currentView === 'profile' || currentView === 'auth') showView(homeViewFor(u));
   else if (typeof refreshCurrentView === 'function') refreshCurrentView();
-  setTimeout(() => { checkAnnouncements(); if (!u.avatar && !u.profileReminderShown && !modalIsOpen()) showProfilePhotoReminder(); }, 400);
+  setTimeout(() => { checkAnnouncements(); maybeShowPhotoReminder(); }, 400);
 }

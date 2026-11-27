@@ -64,7 +64,7 @@ function markAnnouncementsSeen(ids) {
   saveDB();
   setTimeout(() => {
     checkAnnouncements();   // se chegou outro aviso enquanto lia
-    if (!modalIsOpen() && !u.avatar && !u.profileReminderShown) showProfilePhotoReminder();
+    maybeShowPhotoReminder();
   }, 300);
 }
 

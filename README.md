@@ -31,6 +31,9 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.17 (27/11/2026) — lembrete da foto a cada entrada
+- Quem está sem foto de perfil vê o lembrete "Adicione uma foto de perfil" a cada entrada no sistema (uma vez por sessão: abrir o site/app de novo ou entrar depois de "Sair"). Deixa de aparecer quando a foto é salva.
+
 ### v11.16 (27/11/2026) — Reservas futuras
 - Novo botão "Reservas futuras" (próximos 60 dias, agrupado por dia, com contador por dia) na Coordenação (caixa no topo + menu lateral, a partir de amanhã) e no Painel técnico (aba, a partir de hoje). Aprovar/iniciar/concluir na própria linha.
 
