@@ -31,6 +31,9 @@ A coordenação é definida pelo campo `role: "admin"` do documento `users/{uid}
 
 ## Histórico
 
+### v11.16 (27/11/2026) — Reservas futuras
+- Novo botão "Reservas futuras" (próximos 60 dias, agrupado por dia, com contador por dia) na Coordenação (caixa no topo + menu lateral, a partir de amanhã) e no Painel técnico (aba, a partir de hoje). Aprovar/iniciar/concluir na própria linha.
+
 ### v11.15 (26/11/2026) — caixas da Coordenação clicáveis
 - As caixas do topo da aba Coordenação abrem a lista correspondente logo abaixo, com rolagem automática e a caixa escolhida destacada: Pendentes (aprovar/recusar na própria linha), Hoje, Próximos 7 dias (nova, agrupada por dia), Devoluções e Em manutenção (agora abre a aba Manutenção).
 - Novas abas laterais "Hoje" e "Próximos 7 dias" na Coordenação, com as mesmas ações rápidas do Painel técnico.

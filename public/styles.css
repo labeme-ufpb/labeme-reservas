@@ -2798,3 +2798,5 @@ body.view-painel { background: #08213b; overflow: hidden; }
 button.stat-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md, 0 6px 18px rgba(9,34,62,.12)); }
 button.stat-card:focus-visible { outline: 2px solid var(--labeme-navy, #0d3257); outline-offset: 2px; }
 #adminContent .panel-title:focus { outline: none; }
+/* v11.16: contador de reservas por dia nas listas de próximos dias */
+.agenda-day h3 .agenda-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 6px; font-size: 11px; font-weight: 700; border-radius: 10px; background: var(--gray-100); color: var(--gray-700); vertical-align: 2px; }

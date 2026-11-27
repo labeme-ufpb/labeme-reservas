@@ -10,7 +10,7 @@ let allResFilters = { status: 'all', from: '', to: '', q: '' };
 let reportPeriod = 'semester';
 
 const ADMIN_TABS = [
-  ['pending', 'Pendentes', 'clock'], ['today', 'Hoje', 'calendar'], ['week', 'Próximos 7 dias', 'calendar'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'], ['maintenance', 'Manutenção', 'wrench'],
+  ['pending', 'Pendentes', 'clock'], ['today', 'Hoje', 'calendar'], ['week', 'Próximos 7 dias', 'calendar'], ['future', 'Reservas futuras', 'calendar'], ['returns', 'Devoluções', 'camera'], ['resources', 'Recursos', 'box'], ['maintenance', 'Manutenção', 'wrench'],
   ['users', 'Usuários', 'users'], ['announcements', 'Avisos', 'megaphone'], ['all-res', 'Reservas', 'list'], ['reports', 'Relatórios', 'chart'],
   ['settings', 'Configurações', 'settings'], ['backup', 'Backup', 'database']
 ];
@@ -34,7 +34,9 @@ function adminLists() {
     todayList: R.filter(r => resCovers(r, today) && live.includes(r.status)).sort(byTime),
     // próximos 7 dias: de amanhã em diante (o que é de hoje fica na caixa "Hoje")
     week: R.filter(r => live.includes(r.status) && resOverlapsDates(r, addDaysISO(today, 1), weekEnd)).sort(byTime),
-    returns: R.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r))
+    returns: R.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r)),
+    // v11.16: reservas futuras = próximos 60 dias, a partir de amanhã
+    future: upcomingReservations(addDaysISO(today, 1), FUTURE_DAYS)
   };
 }
 
@@ -54,11 +56,12 @@ function renderAdmin() {
     card('pending', 'accent-amber', 'Pendentes', pending, pending ? 'toque para aprovar ou recusar' : 'aguardando aprovação') +
     card('today', 'accent-green', 'Hoje', L.todayList.length, fmtDateShort(today)) +
     card('week', 'accent-steel', 'Próximos 7 dias', L.week.length, 'reservas confirmadas') +
+    card('future', 'accent-steel', 'Reservas futuras', L.future.length, `próximos ${FUTURE_DAYS} dias`) +
     card('returns', 'accent-steel', 'Devoluções', returns, 'a conferir / atrasadas') +
     card('maintenance', 'accent-navy', 'Em manutenção', maint, `de ${window.db.resources.filter(r => r.active).length} recursos ativos`);
 
   const content = document.getElementById('adminContent');
-  const fn = { pending: adminPending, today: adminToday, week: adminWeek, returns: adminReturns, resources: adminResources, maintenance: maintenanceOverviewHtml, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
+  const fn = { pending: adminPending, today: adminToday, week: adminWeek, future: adminFuture, returns: adminReturns, resources: adminResources, maintenance: maintenanceOverviewHtml, users: adminUsers, announcements: adminAnnouncements, 'all-res': adminAllReservations,
     reports: adminReports, settings: adminSettings, backup: adminBackup }[adminTab] || adminPending;
   content.innerHTML = fn();
 }
@@ -86,6 +89,11 @@ function adminWeek() {
     week.length ? `<div class="panel-body">${Object.entries(byDay).map(([d, list]) =>
       `<section class="agenda-day"><h3>${fmtDateLong(d)}</h3><div class="res-list">${list.map(r => reservationRow(r, { quick: true })).join('')}</div></section>`).join('')}</div>`
       : emptyBox('Nenhuma reserva confirmada nos próximos 7 dias.', 'calendar'));
+}
+function adminFuture() {
+  const { future, today } = adminLists(), from = addDaysISO(today, 1);
+  return panel('Reservas futuras', future.length ? `${future.length} reserva(s) confirmada(s) nos próximos ${FUTURE_DAYS} dias — de amanhã até ${fmtDateLong(addDaysISO(today, FUTURE_DAYS))}.` : '',
+    future.length ? `<div class="panel-body">${agendaByDayHtml(future, from)}</div>` : emptyBox(`Nenhuma reserva confirmada nos próximos ${FUTURE_DAYS} dias.`, 'calendar'));
 }
 function adminReturns() {
   const list = window.db.reservations.filter(r => r.status === 'awaiting_return' || isOverdueReturn(r)).sort((a, b) => a.date.localeCompare(b.date));

@@ -5,7 +5,7 @@
 /* Versão do sistema: tem de ser igual a window.APP_BUILD no index.html.
    Se o navegador abriu uma página antiga guardada em cache (com scripts novos),
    recarrega uma vez buscando a página atualizada. */
-const APP_BUILD = '11.15';
+const APP_BUILD = '11.16';
 (function checkBuild() {
   try {
     if (window.APP_BUILD === APP_BUILD) {
